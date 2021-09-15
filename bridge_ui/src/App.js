@@ -20,6 +20,7 @@ import Attest from "./components/Attest";
 import Home from "./components/Home";
 import NFT from "./components/NFT";
 import Transfer from "./components/Transfer";
+import Migration from "./components/Migration";
 import wormholeLogo from "./icons/wormhole.svg";
 import { ENABLE_NFT } from "./utils/consts";
 
@@ -160,6 +161,9 @@ function App() {
           <Route exact path="/register">
             <Attest />
           </Route>
+          <Route exact path="/migrate/:legacyAsset">
+            <Migration />
+          </Route>
           <Route exact path="/">
             <Home />
           </Route>
@@ -173,3 +177,5 @@ function App() {
 }
 
 export default App;
+
+// force cloudflare page build - 1
