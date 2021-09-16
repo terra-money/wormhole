@@ -36,7 +36,25 @@ jobs:
           npm ci --prefix ethereum
           npm ci --prefix sdk/js
           npm run build --prefix sdk/js
+          npm ci --prefix bridge_ui
+          npm ci --prefix lp_ui
           npm run build --prefix bridge_ui
           npm run build --prefix lp_ui
           ls -al bridge_ui
           ls -al lp_ui
+
+#      - name: Deploy bridge_ui
+#        uses: peaceiris/actions-gh-pages@v3
+#        with:
+#          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+#          external_repository: terra-money/wormhole-bridge-ui
+#          publish_branch: main
+#          publish_dir: ./bridge_ui/build
+#
+#      - name: Deploy lp_ui
+#        uses: peaceiris/actions-gh-pages@v3
+#        with:
+#          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+#          external_repository: terra-money/wormhole-lp-ui
+#          publish_branch: main
+#          publish_dir: ./lp_ui/build
