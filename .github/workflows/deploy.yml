@@ -26,6 +26,7 @@ jobs:
         with:
           node-version: 16
 
+      # TODO replace command : REACT_APP_CLUSTER=mainnet REACT_APP_COVALENT_API_KEY=${{secrets.COVALENT_API_KEY}} npm run build --prefix bridge_ui
       - name: Build
         run: |
           DOCKER_BUILDKIT=1 docker build --target node-export -f Dockerfile.proto -o type=local,dest=. .
@@ -35,8 +36,7 @@ jobs:
           npm run build --prefix sdk/js
           npm ci --prefix bridge_ui
           npm ci --prefix lp_ui
-#          REACT_APP_CLUSTER=mainnet REACT_APP_COVALENT_API_KEY=${{secrets.COVALENT_API_KEY}} npm run build --prefix bridge_ui
-          REACT_APP_CLUSTER=mainnet REACT_APP_COVALENT_API_KEY=${{secrets.COVALENT_API_KEY}} npm run build --prefix bridge_ui
+          REACT_APP_CLUSTER=mainnet npm run build --prefix bridge_ui
           REACT_APP_CLUSTER=mainnet npm run build --prefix lp_ui
           ls -al bridge_ui
           ls -al lp_ui
