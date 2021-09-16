@@ -1,0 +1,42 @@
+name: DEPLOY-TEST
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+      - feat/aws-deploy
+  pull_request:
+    branches:
+      - master
+      - develop
+
+env:
+  NPM_TOKEN: ${{secrets.NPM_TOKEN}}
+
+jobs:
+  test:
+    name: Deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v2
+
+      - name: Set Node.js version
+        uses: actions/setup-node@v1
+        with:
+          node-version: 16
+
+      - name: Build
+        run: |
+          DOCKER_BUILDKIT=1 docker build --target node-export -f Dockerfile.proto -o type=local,dest=. .
+          DOCKER_BUILDKIT=1 docker build -f solana/Dockerfile.wasm -o type=local,dest=. solana
+          npm ci --prefix ethereum
+          npm ci --prefix sdk/js
+          npm run build --prefix sdk/js
+          npm run build --prefix bridge_ui
+          npm run build --prefix lp_ui
+          ls -al bridge_ui
+          ls -al lp_ui
