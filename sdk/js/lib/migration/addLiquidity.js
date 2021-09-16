@@ -34,7 +34,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { Token, TOKEN_PROGRAM_ID, u64 } from "@solana/spl-token";
 import { PublicKey, Transaction } from "@solana/web3.js";
 import { ixFromRust } from "../solana";
 export default function addLiquidity(connection, payerAddress, program_id, from_mint, to_mint, liquidity_token_account, lp_share_token_account, amount) {
@@ -45,7 +45,7 @@ export default function addLiquidity(connection, payerAddress, program_id, from_
                 case 0: return [4 /*yield*/, import("../solana/migration/wormhole_migration")];
                 case 1:
                     _a = _b.sent(), authority_address = _a.authority_address, add_liquidity = _a.add_liquidity;
-                    approvalIx = Token.createApproveInstruction(TOKEN_PROGRAM_ID, new PublicKey(liquidity_token_account), new PublicKey(authority_address(program_id)), new PublicKey(payerAddress), [], Number(amount));
+                    approvalIx = Token.createApproveInstruction(TOKEN_PROGRAM_ID, new PublicKey(liquidity_token_account), new PublicKey(authority_address(program_id)), new PublicKey(payerAddress), [], new u64(amount.toString(16), 16));
                     ix = ixFromRust(add_liquidity(program_id, from_mint, to_mint, liquidity_token_account, lp_share_token_account, amount));
                     transaction = new Transaction().add(approvalIx, ix);
                     return [4 /*yield*/, connection.getRecentBlockhash()];
