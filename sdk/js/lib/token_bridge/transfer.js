@@ -34,7 +34,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { Token, TOKEN_PROGRAM_ID, u64 } from "@solana/spl-token";
 import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
 import { MsgExecuteContract } from "@terra-money/terra.js";
 import { Bridge__factory, TokenImplementation__factory, } from "../ethers-contracts";
@@ -135,7 +135,7 @@ export function transferFromSolana(connection, bridgeAddress, tokenBridgeAddress
                     return [4 /*yield*/, import("../solana/token/token_bridge")];
                 case 2:
                     _a = _b.sent(), transfer_native_ix = _a.transfer_native_ix, transfer_wrapped_ix = _a.transfer_wrapped_ix, approval_authority_address = _a.approval_authority_address;
-                    approvalIx = Token.createApproveInstruction(TOKEN_PROGRAM_ID, new PublicKey(fromAddress), new PublicKey(approval_authority_address(tokenBridgeAddress)), new PublicKey(payerAddress), [], Number(amount));
+                    approvalIx = Token.createApproveInstruction(TOKEN_PROGRAM_ID, new PublicKey(fromAddress), new PublicKey(approval_authority_address(tokenBridgeAddress)), new PublicKey(payerAddress), [], new u64(amount.toString(16), 16));
                     messageKey = Keypair.generate();
                     isSolanaNative = originChain === undefined || originChain === CHAIN_ID_SOLANA;
                     if (!isSolanaNative && !originAddress) {
