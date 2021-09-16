@@ -11,14 +11,11 @@ on:
       - master
       - develop
 
-env:
-  NPM_TOKEN: ${{secrets.NPM_TOKEN}}
-
 jobs:
   test:
     name: Deploy
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Clone repository
@@ -38,8 +35,9 @@ jobs:
           npm run build --prefix sdk/js
           npm ci --prefix bridge_ui
           npm ci --prefix lp_ui
-          npm run build --prefix bridge_ui
-          npm run build --prefix lp_ui
+#          REACT_APP_CLUSTER=mainnet REACT_APP_COVALENT_API_KEY=${{secrets.COVALENT_API_KEY}} npm run build --prefix bridge_ui
+          REACT_APP_CLUSTER=mainnet REACT_APP_COVALENT_API_KEY=${{secrets.COVALENT_API_KEY}} npm run build --prefix bridge_ui
+          REACT_APP_CLUSTER=mainnet npm run build --prefix lp_ui
           ls -al bridge_ui
           ls -al lp_ui
 
