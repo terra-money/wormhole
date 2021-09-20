@@ -10,7 +10,6 @@ use crate::{
         MintSigner,
         SplTokenMeta,
         SplTokenMetaDerivationData,
-        WrappedDerivationData,
         WrappedMetaDerivationData,
         WrappedMint,
         WrappedTokenMeta,
@@ -25,11 +24,7 @@ use crate::{
     },
 };
 use bridge::{
-    accounts::Bridge,
-    api::{
-        PostMessage,
-        PostMessageData,
-    },
+    api::PostMessageData,
     types::ConsistencyLevel,
     vaa::SerializePayload,
 };
@@ -44,9 +39,7 @@ use solana_program::{
         invoke,
         invoke_signed,
     },
-    program_error::ProgramError,
     program_option::COption,
-    pubkey::Pubkey,
     sysvar::clock::Clock,
 };
 use solitaire::{
@@ -57,18 +50,7 @@ use solitaire::{
     CreationLamports::Exempt,
     *,
 };
-use spl_token::{
-    error::TokenError::OwnerMismatch,
-    state::{
-        Account,
-        Mint,
-    },
-};
 use spl_token_metadata::state::Metadata;
-use std::ops::{
-    Deref,
-    DerefMut,
-};
 
 #[derive(FromAccounts)]
 pub struct TransferNative<'b> {
@@ -205,15 +187,18 @@ pub fn transfer_native(
         Metadata::from_account_info(accs.spl_metadata.info()).ok_or(InvalidMetadata)?;
 
     // Post message
+    // Given there is no tokenID equivalent on Solana and each distinct token address is translated
+    // into a new contract on EVM based chains (which is costly), we use a static token_address
+    // and encode the mint in the token_id.
     let payload = PayloadTransfer {
-        token_address: accs.mint.info().key.to_bytes(),
+        token_address: [1u8; 32],
         token_chain: 1,
         to: data.target_address,
         to_chain: data.target_chain,
         symbol: metadata.data.symbol,
         name: metadata.data.name,
         uri: metadata.data.uri,
-        token_id: U256::from(0), // TODO
+        token_id: U256::from_big_endian(&accs.mint.info().key.to_bytes()),
     };
     let params = (
         bridge::instruction::Instruction::PostMessage,
