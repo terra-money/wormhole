@@ -22,14 +22,13 @@ import { useSolanaWallet } from "../../contexts/SolanaWalletContext";
 import useIsWalletReady from "../../hooks/useIsWalletReady";
 import useMetaplexData from "../../hooks/useMetaplexData";
 import useSolanaTokenMap from "../../hooks/useSolanaTokenMap";
+import { COLORS } from "../../muiTheme";
 import { MIGRATION_PROGRAM_ADDRESS, SOLANA_HOST } from "../../utils/consts";
-import {
-  getMultipleAccounts,
-  shortenAddress,
-  signSendAndConfirm,
-} from "../../utils/solana";
+import { getMultipleAccounts, signSendAndConfirm } from "../../utils/solana";
 import ButtonWithLoader from "../ButtonWithLoader";
+import LowBalanceWarning from "../LowBalanceWarning";
 import ShowTx from "../ShowTx";
+import SmartAddress from "../SmartAddress";
 import SolanaCreateAssociatedAddress, {
   useAssociatedAccountExistsState,
 } from "../SolanaCreateAssociatedAddress";
@@ -37,10 +36,11 @@ import SolanaWalletKey from "../SolanaWalletKey";
 
 const useStyles = makeStyles(() => ({
   mainPaper: {
+    backgroundColor: COLORS.nearBlackWithMinorTransparency,
     textAlign: "center",
     padding: "2rem",
     "& > h, p ": {
-      margin: "1rem",
+      margin: ".5rem",
     },
   },
   divider: {
@@ -332,21 +332,33 @@ export default function Workflow({
   ]);
 
   const fromParse = (amount: string) => {
-    return parseUnits(amount, fromMintDecimals).toBigInt();
+    try {
+      return parseUnits(amount, fromMintDecimals).toBigInt();
+    } catch (e) {
+      return BigInt(0);
+    }
   };
 
   const hasRequisiteData = fromMint && toMint && poolAddress && poolExists;
   const accountsReady =
     fromTokenAccountExists && toTokenAccountExists && poolExists;
-  const sufficientBalances =
-    toCustodyBalance &&
+  const amountGreaterThanZero = fromParse(migrationAmount) > BigInt(0);
+  const sufficientFromTokens =
     fromTokenAccountBalance &&
     migrationAmount &&
-    fromParse(migrationAmount) <= fromParse(fromTokenAccountBalance) &&
+    fromParse(migrationAmount) <= fromParse(fromTokenAccountBalance);
+  const sufficientPoolBalance =
+    toCustodyBalance &&
+    migrationAmount &&
     parseFloat(migrationAmount) <= parseFloat(toCustodyBalance);
 
   const isReadyToTransfer =
-    isReady && sufficientBalances && accountsReady && hasRequisiteData;
+    isReady &&
+    amountGreaterThanZero &&
+    sufficientFromTokens &&
+    sufficientPoolBalance &&
+    accountsReady &&
+    hasRequisiteData;
 
   const getNotReadyCause = () => {
     if (!fromMint || !toMint || !poolAddress || !poolExists) {
@@ -357,8 +369,12 @@ export default function Workflow({
       return "You have not created the necessary token accounts.";
     } else if (!migrationAmount) {
       return "Enter an amount to transfer.";
-    } else if (!sufficientBalances) {
-      return "There are not sufficient funds for this transfer.";
+    } else if (!amountGreaterThanZero) {
+      return "Enter an amount greater than zero.";
+    } else if (!sufficientFromTokens) {
+      return "There are not sufficient funds in your wallet for this transfer.";
+    } else if (!sufficientPoolBalance) {
+      return "There are not sufficient funds in the pool for this transfer.";
     } else {
       return "";
     }
@@ -385,12 +401,22 @@ export default function Workflow({
   const toMetadata = getMetadata(toMint);
   const fromMetadata = getMetadata(fromMint);
 
-  const toMintPrettyString = toMetadata.symbol
-    ? toMetadata.symbol + " (" + shortenAddress(toMint) + ")"
-    : shortenAddress(toMint);
-  const fromMintPrettyString = fromMetadata.symbol
-    ? fromMetadata.symbol + " (" + shortenAddress(fromMint) + ")"
-    : shortenAddress(fromMint);
+  const toMintPretty = (
+    <SmartAddress
+      chainId={CHAIN_ID_SOLANA}
+      address={toMint}
+      symbol={toMetadata?.symbol}
+      tokenName={toMetadata?.name}
+    />
+  );
+  const fromMintPretty = (
+    <SmartAddress
+      chainId={CHAIN_ID_SOLANA}
+      address={fromMint}
+      symbol={fromMetadata?.symbol}
+      tokenName={fromMetadata?.name}
+    />
+  );
 
   return (
     <Container maxWidth="md">
@@ -402,31 +428,44 @@ export default function Workflow({
         <Divider className={classes.divider} />
 
         <SolanaWalletKey />
+        <LowBalanceWarning chainId={CHAIN_ID_SOLANA} />
         {fromTokenAccount && toTokenAccount && fromTokenAccountBalance ? (
           <>
             <Typography variant="body2">
-              This will migrate {fromMintPrettyString} tokens in this account:
+              <span>This will migrate</span>
+              {fromMintPretty}
+              <span>tokens in this account:</span>
             </Typography>
             <Typography variant="h5">
-              {shortenAddress(fromTokenAccount) +
-                ` (Balance: ${fromTokenAccountBalance}${
-                  fromMetadata.symbol && " " + fromMetadata.symbol
-                })`}
+              <SmartAddress
+                address={fromTokenAccount}
+                chainId={CHAIN_ID_SOLANA}
+              />
+              {`(Balance: ${fromTokenAccountBalance}${
+                fromMetadata.symbol && " " + fromMetadata.symbol
+              })`}
             </Typography>
             <div className={classes.spacer} />
             <Typography variant="body2">
-              into {toMintPrettyString} tokens in this account:
+              <span>into </span>
+              {toMintPretty}
+              <span> tokens in this account:</span>
             </Typography>
             <Typography
               variant="h5"
               color={toTokenAccountExists ? "textPrimary" : "textSecondary"}
             >
-              {shortenAddress(toTokenAccount) +
-                (toTokenAccountExists
+              <SmartAddress
+                address={toTokenAccount}
+                chainId={CHAIN_ID_SOLANA}
+              />
+              <span>
+                {toTokenAccountExists
                   ? ` (Balance: ${toTokenAccountBalance}${
                       (toMetadata.symbol && " " + toMetadata.symbol) || ""
                     })`
-                  : " (Not created yet)")}
+                  : " (Not created yet)"}
+              </span>
             </Typography>
             <SolanaCreateAssociatedAddress
               mintAddress={toMint}
@@ -438,14 +477,21 @@ export default function Workflow({
               <>
                 <div className={classes.spacer} />
                 <Typography variant="body2">
-                  Using pool {shortenAddress(poolAddress)} holding tokens in
-                  this account:
+                  <span>Using pool </span>
+                  <SmartAddress
+                    address={poolAddress}
+                    chainId={CHAIN_ID_SOLANA}
+                  />
+                  <span> holding tokens in this account:</span>
                 </Typography>
                 <Typography variant="h5">
-                  {shortenAddress(toCustodyAddress) +
-                    ` (Balance: ${toCustodyBalance}${
-                      toMetadata.symbol && " " + toMetadata.symbol
-                    })`}
+                  <SmartAddress
+                    address={toCustodyAddress}
+                    chainId={CHAIN_ID_SOLANA}
+                  />
+                  <span>{` (Balance: ${toCustodyBalance}${
+                    toMetadata.symbol && " " + toMetadata.symbol
+                  })`}</span>
                 </Typography>
               </>
             ) : null}
