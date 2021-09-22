@@ -110,6 +110,9 @@ const useStyles = makeStyles((theme) => ({
   },
   mediaContent: {
     display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
     background: "transparent",
     border: "1px solid #ffb347",
     margin: theme.spacing(0, 2),
@@ -233,7 +236,7 @@ export default function NFTViewer({
           })}
         >
           {hasVideo ? (
-            <video controls style={{ maxWidth: "100%" }}>
+            <video autoPlay controls style={{ maxWidth: "100%" }}>
               <source src={safeIPFS(metadata.animation_url || "")} />
               {image}
             </video>
