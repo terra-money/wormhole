@@ -1,6 +1,11 @@
 import { CHAIN_ID_SOLANA } from "@certusone/wormhole-sdk";
-import { CircularProgress, TextField, Typography } from "@material-ui/core";
-import { createStyles, makeStyles, Theme } from "@material-ui/core/styles";
+import {
+  CircularProgress,
+  TextField,
+  Typography,
+  createStyles,
+  makeStyles,
+} from "@material-ui/core";
 import { Alert, Autocomplete } from "@material-ui/lab";
 import { createFilterOptions } from "@material-ui/lab/Autocomplete";
 import { TokenInfo } from "@solana/spl-token-registry";
@@ -8,33 +13,59 @@ import React, { useCallback, useMemo } from "react";
 import useMetaplexData from "../../hooks/useMetaplexData";
 import useSolanaTokenMap from "../../hooks/useSolanaTokenMap";
 import { DataWrapper } from "../../store/helpers";
+import { NFTParsedTokenAccount } from "../../store/nftSlice";
 import { ParsedTokenAccount } from "../../store/transferSlice";
 import {
   MIGRATION_ASSET_MAP,
   WORMHOLE_V1_MINT_AUTHORITY,
 } from "../../utils/consts";
 import { ExtractedMintInfo, shortenAddress } from "../../utils/solana";
+import { sortParsedTokenAccounts } from "../../utils/sort";
 import NFTViewer from "./NFTViewer";
 import RefreshButtonWrapper from "./RefreshButtonWrapper";
 
-const useStyles = makeStyles((theme: Theme) =>
+const useStyles = makeStyles((theme) =>
   createStyles({
     selectInput: { minWidth: "10rem" },
     tokenOverviewContainer: {
       display: "flex",
+      width: "100%",
+      alignItems: "center",
       "& div": {
-        margin: ".5rem",
+        margin: theme.spacing(1),
+        flexBasis: "33%",
+        "&$tokenImageContainer": {
+          maxWidth: 40,
+        },
+        "&:last-child": {
+          textAlign: "right",
+        },
       },
+    },
+    tokenImageContainer: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 40,
     },
     tokenImage: {
       maxHeight: "2.5rem", //Eyeballing this based off the text size
+    },
+    v1Warning: {
+      width: "100%",
+    },
+    migrationAlert: {
+      width: "100%",
+      "& .MuiAlert-message": {
+        width: "100%",
+      },
     },
   })
 );
 
 type SolanaSourceTokenSelectorProps = {
   value: ParsedTokenAccount | null;
-  onChange: (newValue: ParsedTokenAccount | null) => void;
+  onChange: (newValue: NFTParsedTokenAccount | null) => void;
   accounts: ParsedTokenAccount[];
   disabled: boolean;
   mintAccounts:
@@ -85,6 +116,7 @@ export default function SolanaSourceTokenSelector(
   const getLogo = useCallback(
     (account: ParsedTokenAccount) => {
       return (
+        (account.isNativeAsset && account.logo) ||
         memoizedTokenMap.get(account.mintKey)?.logoURI ||
         metaplex.data?.get(account.mintKey)?.data?.uri ||
         undefined
@@ -96,6 +128,7 @@ export default function SolanaSourceTokenSelector(
   const getSymbol = useCallback(
     (account: ParsedTokenAccount) => {
       return (
+        (account.isNativeAsset && account.symbol) ||
         memoizedTokenMap.get(account.mintKey)?.symbol ||
         metaplex.data?.get(account.mintKey)?.data?.symbol ||
         undefined
@@ -107,6 +140,7 @@ export default function SolanaSourceTokenSelector(
   const getName = useCallback(
     (account: ParsedTokenAccount) => {
       return (
+        (account.isNativeAsset && account.name) ||
         memoizedTokenMap.get(account.mintKey)?.name ||
         metaplex.data?.get(account.mintKey)?.data?.name ||
         undefined
@@ -165,33 +199,39 @@ export default function SolanaSourceTokenSelector(
       const name = getName(account) || "--";
 
       const content = (
-        <>
-          <div className={classes.tokenOverviewContainer}>
-            <div>
-              {uri && <img alt="" className={classes.tokenImage} src={uri} />}
-            </div>
-            <div>
-              <Typography variant="subtitle1">{symbol}</Typography>
-              <Typography variant="subtitle2">{name}</Typography>
-            </div>
-            <div>
-              <Typography variant="body1">
-                {"Mint : " + mintPrettyString}
-              </Typography>
-              <Typography variant="body1">
-                {"Account :" + accountAddressPrettyString}
-              </Typography>
-            </div>
+        <div className={classes.tokenOverviewContainer}>
+          <div className={classes.tokenImageContainer}>
+            {uri && <img alt="" className={classes.tokenImage} src={uri} />}
+          </div>
+          <div>
+            <Typography variant="subtitle1">{symbol}</Typography>
+            <Typography variant="subtitle2">{name}</Typography>
+          </div>
+          <div>
+            {account.isNativeAsset ? (
+              <Typography>{"Native"}</Typography>
+            ) : (
+              <>
+                <Typography variant="body1">
+                  {"Mint : " + mintPrettyString}
+                </Typography>
+                <Typography variant="body1">
+                  {"Account :" + accountAddressPrettyString}
+                </Typography>
+              </>
+            )}
+          </div>
+          {nft ? null : (
             <div>
               <Typography variant="body2">{"Balance"}</Typography>
               <Typography variant="h6">{account.uiAmountString}</Typography>
             </div>
-          </div>
-        </>
+          )}
+        </div>
       );
 
       const v1Warning = (
-        <div>
+        <div className={classes.v1Warning}>
           <Typography variant="body2">
             Wormhole v1 tokens are not eligible for transfer.
           </Typography>
@@ -200,7 +240,7 @@ export default function SolanaSourceTokenSelector(
       );
 
       const migrationRender = (
-        <div>
+        <div className={classes.migrationAlert}>
           <Alert severity="warning">
             <Typography variant="body2">
               This is a legacy asset eligible for migration.
@@ -216,7 +256,15 @@ export default function SolanaSourceTokenSelector(
         ? v1Warning
         : content;
     },
-    [getLogo, getSymbol, getName, classes, isWormholev1, isMigrationEligible]
+    [
+      getLogo,
+      getSymbol,
+      getName,
+      classes,
+      isWormholev1,
+      isMigrationEligible,
+      nft,
+    ]
   );
 
   //The autocomplete doesn't rerender the option label unless the value changes.
@@ -234,18 +282,26 @@ export default function SolanaSourceTokenSelector(
   //This exists to remove NFTs from the list of potential options. It requires reading the metaplex data, so it would be
   //difficult to do before this point.
   const filteredOptions = useMemo(() => {
-    return props.accounts.filter((x) => {
-      const zeroBalance = x.amount === "0";
-      if (zeroBalance) {
-        return false;
-      }
-      const isNFT =
-        x.decimals === 0 &&
-        metaplex.data?.get(x.mintKey)?.data?.uri &&
-        mintAccounts?.data?.get(x.mintKey)?.supply === "1";
-      return nft ? isNFT : !isNFT;
-    });
-  }, [mintAccounts?.data, metaplex.data, nft, props.accounts]);
+    const tokenList = props.accounts
+      .filter((x) => {
+        const zeroBalance = x.amount === "0";
+        if (zeroBalance) {
+          return false;
+        }
+        const isNFT =
+          x.decimals === 0 &&
+          metaplex.data?.get(x.mintKey)?.data?.uri &&
+          mintAccounts?.data?.get(x.mintKey)?.supply === "1";
+        return nft ? isNFT : !isNFT;
+      })
+      .map((account) => ({
+        ...account,
+        symbol: account.symbol || getSymbol(account) || undefined,
+      }));
+    tokenList.sort(sortParsedTokenAccounts);
+    return tokenList;
+  }, [mintAccounts?.data, metaplex.data, nft, props.accounts, getSymbol]);
+  console.log(filteredOptions);
 
   const isOptionDisabled = useMemo(() => {
     return (value: ParsedTokenAccount) => {
@@ -254,11 +310,16 @@ export default function SolanaSourceTokenSelector(
   }, [isWormholev1, isMigrationEligible]);
 
   const onAutocompleteChange = useCallback(
-    (event, newValue) => {
+    (event, newValue: NFTParsedTokenAccount | null) => {
+      if (!newValue) {
+        onChange(null);
+        return;
+      }
       const symbol = getSymbol(newValue);
       const name = getName(newValue);
       const logo = getLogo(newValue);
       // TODO: more nft data
+
       onChange({
         ...newValue,
         symbol,
@@ -282,11 +343,15 @@ export default function SolanaSourceTokenSelector(
   );
 
   const getOptionLabel = useCallback(
-    (option) => {
+    (option: ParsedTokenAccount) => {
       const symbol = getSymbol(option);
-      return `${symbol ? symbol : "Unknown"} (Account: ${shortenAddress(
-        option.publicKey
-      )}, Mint: ${shortenAddress(option.mintKey)})`;
+      const label = option.isNativeAsset
+        ? symbol || "" //default for non-null guarantee
+        : `${symbol ? symbol : "Unknown"} (Account: ${shortenAddress(
+            option.publicKey
+          )}, Mint: ${shortenAddress(option.mintKey)})`;
+
+      return label;
     },
     [getSymbol]
   );
@@ -295,7 +360,6 @@ export default function SolanaSourceTokenSelector(
     <Autocomplete
       autoComplete
       autoHighlight
-      autoSelect
       blurOnSelect
       clearOnBlur
       fullWidth={false}

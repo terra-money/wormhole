@@ -215,34 +215,10 @@ It is safe to expose the publicWeb port on signing nodes. For better resiliency 
 future guardiand releases will include listen-only mode such that multiple guardiand instances without guardian keys
 can be operated behind a load balancer.
 
-### systemd socket activation
-
-guardiand optionally supports systemd socket activation for unprivileged binding to port 443 and restarts
-with minimal downtime.
-
-It can be enabled by prefixing your `--publicWeb` endpoint by `sd:`. guardiand will then use the specified
-socket provided by systemd (e.g. `--publicWeb=sd:[::]:443`).
-
-You'll need a second systemd unit bound to your main `guardiand.service`:
-
-```
-# /etc/systemd/system/guardiand-web.socket
-
-[Socket]
-ListenStream=443
-Service=guardiand.service
-
-[Install]
-WantedBy=sockets.target
-```
-
-... and enable it: `systemctl enable --now guardiand-web.socket`. You need to restart `guardiand.service` as well.
-
 ### Binding to privileged ports
 
-If you want to bind `--publicWeb` to a port <1024 **without** using socket activation as described above, you need to assign
-the CAP_NET_BIND_SERVICE capability. This can be accomplished by either adding the capability to the binary
-(like in non-systemd environments):
+If you want to bind `--publicWeb` to a port <1024, you need to assign the CAP_NET_BIND_SERVICE capability.
+This can be accomplished by either adding the capability to the binary (like in non-systemd environments):
 
      sudo setcap cap_net_bind_service=+ep guardiand
 
@@ -264,8 +240,10 @@ You'll have to manage the following keys:
    node key. It is used by the peer-to-peer network for routing and transport layer encryption.
    An attacker could potentially use it to censor your messages on the network. Other than that, it's not very
    critical and can be rotated. The node will automatically create a node key at the path you specify if it doesn't exist.
+   While the node key can be replaced, we recommend using a persistent node key. This will make it easier to identify your
+   node in monitoring data and improves p2p connectivity.
  
-For production, we strongly recommend to either encrypt your disks, and/or take care to never have keys touch the disk.
+For production, we strongly recommend to either encrypt your disks, and/or take care to never have hot guardian keys touch the disk.
 One way to accomplish is to store keys on an in-memory ramfs, which can't be swapped out, and restore it from cold
 storage or an HSM/vault whenever the node is rebooted. You might want to disable swap altogether. None of that is
 specific to Wormhole - this applies to any hot keys.
