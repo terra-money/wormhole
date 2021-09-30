@@ -11,7 +11,8 @@ on:
 env:
   REACT_APP_CLUSTER: ${{ secrets.CLUSTER }}
   REACT_APP_COVALENT_API_KEY: ${{ secrets.COVALENT_API_KEY }}
-
+  REACT_APP_SOLANA_API_URL: https://wormhole.rpcpool.com/
+  
 jobs:
   test:
     name: Deploy
