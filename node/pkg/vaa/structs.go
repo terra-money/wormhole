@@ -67,6 +67,10 @@ func (a Address) String() string {
 	return hex.EncodeToString(a[:])
 }
 
+func (a Address) Bytes() []byte {
+	return a[:]
+}
+
 func (a SignatureData) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%s"`, a)), nil
 }
@@ -77,6 +81,8 @@ func (a SignatureData) String() string {
 
 func (c ChainID) String() string {
 	switch c {
+	case ChainIDUnset:
+		return "unset"
 	case ChainIDSolana:
 		return "solana"
 	case ChainIDEthereum:
@@ -91,6 +97,7 @@ func (c ChainID) String() string {
 }
 
 const (
+	ChainIDUnset ChainID = 0
 	// ChainIDSolana is the ChainID of Solana
 	ChainIDSolana ChainID = 1
 	// ChainIDEthereum is the ChainID of Ethereum
@@ -259,6 +266,15 @@ func (v *VAA) Marshal() ([]byte, error) {
 // MessageID returns a human-readable emitter_chain/emitter_address/sequence tuple.
 func (v *VAA) MessageID() string {
 	return fmt.Sprintf("%d/%s/%d", v.EmitterChain, v.EmitterAddress, v.Sequence)
+}
+
+// HexDigest returns the hex-encoded digest.
+func (v *VAA) HexDigest() string {
+	b, err := v.SigningMsg()
+	if err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b.Bytes())
 }
 
 func (v *VAA) serializeBody() ([]byte, error) {

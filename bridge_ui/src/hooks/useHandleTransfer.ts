@@ -1,20 +1,19 @@
 import {
   ChainId,
-  CHAIN_ID_ETH,
   CHAIN_ID_SOLANA,
   CHAIN_ID_TERRA,
   getEmitterAddressEth,
   getEmitterAddressSolana,
   getEmitterAddressTerra,
+  hexToUint8Array,
   parseSequenceFromLogEth,
   parseSequenceFromLogSolana,
   parseSequenceFromLogTerra,
   transferFromEth,
   transferFromEthNative,
   transferFromSolana,
-  transferNativeSol,
   transferFromTerra,
-  hexToUint8Array,
+  transferNativeSol,
   uint8ArrayToHex,
 } from "@certusone/wormhole-sdk";
 import { WalletContextState } from "@solana/wallet-adapter-react";
@@ -48,20 +47,21 @@ import {
   setTransferTx,
 } from "../store/transferSlice";
 import {
-  ETH_BRIDGE_ADDRESS,
-  ETH_TOKEN_BRIDGE_ADDRESS,
+  getBridgeAddressForChain,
+  getTokenBridgeAddressForChain,
   SOLANA_HOST,
   SOL_BRIDGE_ADDRESS,
   SOL_TOKEN_BRIDGE_ADDRESS,
   TERRA_TOKEN_BRIDGE_ADDRESS,
 } from "../utils/consts";
+import { isEVMChain } from "../utils/ethereum";
 import { getSignedVAAWithRetry } from "../utils/getSignedVAAWithRetry";
 import parseError from "../utils/parseError";
 import { signSendAndConfirm } from "../utils/solana";
 import { waitForTerraExecution } from "../utils/terra";
 import useTransferTargetAddressHex from "./useTransferTargetAddress";
 
-async function eth(
+async function evm(
   dispatch: any,
   enqueueSnackbar: any,
   signer: Signer,
@@ -70,21 +70,22 @@ async function eth(
   amount: string,
   recipientChain: ChainId,
   recipientAddress: Uint8Array,
-  isNative: boolean
+  isNative: boolean,
+  chainId: ChainId
 ) {
   dispatch(setIsSending(true));
   try {
     const amountParsed = parseUnits(amount, decimals);
     const receipt = isNative
       ? await transferFromEthNative(
-          ETH_TOKEN_BRIDGE_ADDRESS,
+          getTokenBridgeAddressForChain(chainId),
           signer,
           amountParsed,
           recipientChain,
           recipientAddress
         )
       : await transferFromEth(
-          ETH_TOKEN_BRIDGE_ADDRESS,
+          getTokenBridgeAddressForChain(chainId),
           signer,
           tokenAddress,
           amountParsed,
@@ -95,11 +96,16 @@ async function eth(
       setTransferTx({ id: receipt.transactionHash, block: receipt.blockNumber })
     );
     enqueueSnackbar("Transaction confirmed", { variant: "success" });
-    const sequence = parseSequenceFromLogEth(receipt, ETH_BRIDGE_ADDRESS);
-    const emitterAddress = getEmitterAddressEth(ETH_TOKEN_BRIDGE_ADDRESS);
+    const sequence = parseSequenceFromLogEth(
+      receipt,
+      getBridgeAddressForChain(chainId)
+    );
+    const emitterAddress = getEmitterAddressEth(
+      getTokenBridgeAddressForChain(chainId)
+    );
     enqueueSnackbar("Fetching VAA", { variant: "info" });
     const { vaaBytes } = await getSignedVAAWithRetry(
-      CHAIN_ID_ETH,
+      chainId,
       emitterAddress,
       sequence.toString()
     );
@@ -210,20 +216,16 @@ async function terra(
       msgs: [...msgs],
       memo: "Wormhole - Initiate Transfer",
     });
-    console.log(result);
     const info = await waitForTerraExecution(result);
-    console.log(info);
     dispatch(setTransferTx({ id: info.txhash, block: info.height }));
     enqueueSnackbar("Transaction confirmed", { variant: "success" });
     const sequence = parseSequenceFromLogTerra(info);
-    console.log(sequence);
     if (!sequence) {
       throw new Error("Sequence not found");
     }
     const emitterAddress = await getEmitterAddressTerra(
       TERRA_TOKEN_BRIDGE_ADDRESS
     );
-    console.log(emitterAddress);
     enqueueSnackbar("Fetching VAA", { variant: "info" });
     const { vaaBytes } = await getSignedVAAWithRetry(
       CHAIN_ID_TERRA,
@@ -266,13 +268,13 @@ export function useHandleTransfer() {
   const handleTransferClick = useCallback(() => {
     // TODO: we should separate state for transaction vs fetching vaa
     if (
-      sourceChain === CHAIN_ID_ETH &&
+      isEVMChain(sourceChain) &&
       !!signer &&
       !!sourceAsset &&
       decimals !== undefined &&
       !!targetAddress
     ) {
-      eth(
+      evm(
         dispatch,
         enqueueSnackbar,
         signer,
@@ -281,7 +283,8 @@ export function useHandleTransfer() {
         amount,
         targetChain,
         targetAddress,
-        isNative
+        isNative,
+        sourceChain
       );
     } else if (
       sourceChain === CHAIN_ID_SOLANA &&

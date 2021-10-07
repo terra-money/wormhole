@@ -1,5 +1,4 @@
 import {
-  CHAIN_ID_ETH,
   CHAIN_ID_SOLANA,
   hexToNativeString,
   hexToUint8Array,
@@ -10,6 +9,7 @@ import { PublicKey } from "@solana/web3.js";
 import { BigNumber, ethers } from "ethers";
 import { useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useBetaContext } from "../../contexts/BetaContext";
 import useIsWalletReady from "../../hooks/useIsWalletReady";
 import useSyncTargetAddress from "../../hooks/useSyncTargetAddress";
 import { EthGasEstimateSummary } from "../../hooks/useTransactionFees";
@@ -27,7 +27,12 @@ import {
   selectNFTTargetChain,
   selectNFTTargetError,
 } from "../../store/selectors";
-import { CHAINS, CHAINS_BY_ID } from "../../utils/consts";
+import {
+  BETA_CHAINS,
+  CHAINS_BY_ID,
+  CHAINS_WITH_NFT_SUPPORT,
+} from "../../utils/consts";
+import { isEVMChain } from "../../utils/ethereum";
 import ButtonWithLoader from "../ButtonWithLoader";
 import KeyAndBalance from "../KeyAndBalance";
 import LowBalanceWarning from "../LowBalanceWarning";
@@ -46,9 +51,10 @@ const useStyles = makeStyles((theme) => ({
 function Target() {
   const classes = useStyles();
   const dispatch = useDispatch();
+  const isBeta = useBetaContext();
   const sourceChain = useSelector(selectNFTSourceChain);
   const chains = useMemo(
-    () => CHAINS.filter((c) => c.id !== sourceChain),
+    () => CHAINS_WITH_NFT_SUPPORT.filter((c) => c.id !== sourceChain),
     [sourceChain]
   );
   const targetChain = useSelector(selectNFTTargetChain);
@@ -91,12 +97,12 @@ function Target() {
       <TextField
         select
         fullWidth
+        variant="outlined"
         value={targetChain}
         onChange={handleTargetChange}
-        disabled={true}
       >
         {chains
-          .filter(({ id }) => id === CHAIN_ID_ETH || id === CHAIN_ID_SOLANA)
+          .filter(({ id }) => (isBeta ? true : !BETA_CHAINS.includes(id)))
           .map(({ id, name }) => (
             <MenuItem key={id} value={id}>
               {name}
@@ -107,6 +113,7 @@ function Target() {
       <TextField
         label="Recipient Address"
         fullWidth
+        variant="outlined"
         className={classes.transferField}
         value={readableTargetAddress}
         disabled={true}
@@ -116,12 +123,14 @@ function Target() {
           <TextField
             label="Token Address"
             fullWidth
+            variant="outlined"
             className={classes.transferField}
             value={targetAsset || ""}
             disabled={true}
           />
-          {targetChain === CHAIN_ID_ETH ? (
+          {isEVMChain(targetChain) ? (
             <TextField
+              variant="outlined"
               label="TokenId"
               fullWidth
               className={classes.transferField}
@@ -136,8 +145,8 @@ function Target() {
           You will have to pay transaction fees on{" "}
           {CHAINS_BY_ID[targetChain].name} to redeem your NFT.
         </Typography>
-        {targetChain === CHAIN_ID_ETH && (
-          <EthGasEstimateSummary methodType="nft" />
+        {isEVMChain(targetChain) && (
+          <EthGasEstimateSummary methodType="nft" chainId={targetChain} />
         )}
       </Alert>
       <LowBalanceWarning chainId={targetChain} />

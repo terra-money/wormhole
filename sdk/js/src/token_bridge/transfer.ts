@@ -7,7 +7,8 @@ import {
   Transaction,
 } from "@solana/web3.js";
 import { MsgExecuteContract } from "@terra-money/terra.js";
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
+import { isNativeDenom } from "..";
 import {
   Bridge__factory,
   TokenImplementation__factory,
@@ -90,37 +91,78 @@ export async function transferFromTerra(
   recipientAddress: Uint8Array
 ) {
   const nonce = Math.round(Math.random() * 100000);
-  return [
-    new MsgExecuteContract(
-      walletAddress,
-      tokenAddress,
-      {
-        increase_allowance: {
-          spender: tokenBridgeAddress,
-          amount: amount,
-          expires: {
-            never: {},
+  const isNativeAsset = isNativeDenom(tokenAddress);
+  return isNativeAsset
+    ? [
+        new MsgExecuteContract(
+          walletAddress,
+          tokenBridgeAddress,
+          {
+            deposit_tokens: {},
           },
-        },
-      },
-      { uluna: 10000 }
-    ),
-    new MsgExecuteContract(
-      walletAddress,
-      tokenBridgeAddress,
-      {
-        initiate_transfer: {
-          asset: tokenAddress,
-          amount: amount,
-          recipient_chain: recipientChain,
-          recipient: Buffer.from(recipientAddress).toString("base64"),
-          fee: "0",
-          nonce: nonce,
-        },
-      },
-      { uluna: 10000 }
-    ),
-  ];
+          { [tokenAddress]: amount }
+        ),
+        new MsgExecuteContract(
+          walletAddress,
+          tokenBridgeAddress,
+          {
+            initiate_transfer: {
+              asset: {
+                amount,
+                info: {
+                  native_token: {
+                    denom: tokenAddress,
+                  },
+                },
+              },
+              recipient_chain: recipientChain,
+              recipient: Buffer.from(recipientAddress).toString("base64"),
+              fee: "0",
+              nonce: nonce,
+            },
+          },
+          {
+            uluna: BigNumber.from("10000").toString(),
+          }
+        ),
+      ]
+    : [
+        new MsgExecuteContract(
+          walletAddress,
+          tokenAddress,
+          {
+            increase_allowance: {
+              spender: tokenBridgeAddress,
+              amount: amount,
+              expires: {
+                never: {},
+              },
+            },
+          },
+          { uluna: 10000 }
+        ),
+        new MsgExecuteContract(
+          walletAddress,
+          tokenBridgeAddress,
+          {
+            initiate_transfer: {
+              asset: {
+                amount: amount,
+                info: {
+                  token: {
+                    contract_addr: tokenAddress,
+                  },
+                },
+              },
+              recipient_chain: recipientChain,
+              recipient: Buffer.from(recipientAddress).toString("base64"),
+              fee: "0",
+              nonce: nonce,
+            },
+          },
+          { uluna: 10000 }
+        ),
+      ];
 }
 
 export async function transferNativeSol(

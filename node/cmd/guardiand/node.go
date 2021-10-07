@@ -3,6 +3,7 @@ package guardiand
 import (
 	"context"
 	"fmt"
+	"github.com/certusone/wormhole/node/pkg/notify/discord"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -66,7 +67,6 @@ var (
 
 	terraWS       *string
 	terraLCD      *string
-	terraChainID  *string
 	terraContract *string
 
 	solanaWsRPC *string
@@ -85,6 +85,9 @@ var (
 	tlsProdEnv  *bool
 
 	disableHeartbeatVerify *bool
+
+	discordToken   *string
+	discordChannel *string
 
 	bigTablePersistenceEnabled *bool
 	bigTableGCPProject         *string
@@ -117,7 +120,6 @@ func init() {
 
 	terraWS = NodeCmd.Flags().String("terraWS", "", "Path to terrad root for websocket connection")
 	terraLCD = NodeCmd.Flags().String("terraLCD", "", "Path to LCD service root for http calls")
-	terraChainID = NodeCmd.Flags().String("terraChainID", "", "Terra chain ID, used in LCD client initialization")
 	terraContract = NodeCmd.Flags().String("terraContract", "", "Wormhole contract address on Terra blockchain")
 
 	solanaWsRPC = NodeCmd.Flags().String("solanaWS", "", "Solana Websocket URL (required")
@@ -138,6 +140,9 @@ func init() {
 
 	disableHeartbeatVerify = NodeCmd.Flags().Bool("disableHeartbeatVerify", false,
 		"Disable heartbeat signature verification (useful during network startup)")
+
+	discordToken = NodeCmd.Flags().String("discordToken", "", "Discord bot token (optional)")
+	discordChannel = NodeCmd.Flags().String("discordChannel", "", "Discord channel name (optional)")
 
 	bigTablePersistenceEnabled = NodeCmd.Flags().Bool("bigTablePersistenceEnabled", false, "Turn on forwarding events to BigTable")
 	bigTableGCPProject = NodeCmd.Flags().String("bigTableGCPProject", "", "Google Cloud project ID for storing events")
@@ -330,9 +335,6 @@ func runNode(cmd *cobra.Command, args []string) {
 	if *terraLCD == "" {
 		logger.Fatal("Please specify --terraLCD")
 	}
-	if *terraChainID == "" {
-		logger.Fatal("Please specify --terraChainID")
-	}
 	if *terraContract == "" {
 		logger.Fatal("Please specify --terraContract")
 	}
@@ -420,6 +422,14 @@ func runNode(cmd *cobra.Command, args []string) {
 	// Guardian set state managed by processor
 	gst := common.NewGuardianSetState()
 
+	var notifier *discord.DiscordNotifier
+	if *discordToken != "" {
+		notifier, err = discord.NewDiscordNotifier(*discordToken, *discordChannel, logger)
+		if err != nil {
+			logger.Error("failed to initialize Discord bot", zap.Error(err))
+		}
+	}
+
 	// Load p2p private key
 	var priv crypto.PrivKey
 	if *unsafeDevMode {
@@ -504,9 +514,9 @@ func runNode(cmd *cobra.Command, args []string) {
 			*devNumGuardians,
 			*ethRPC,
 			*terraLCD,
-			*terraChainID,
 			*terraContract,
 			attestationEvents,
+			notifier,
 		)
 		if err := supervisor.Run(ctx, "processor", p.Run); err != nil {
 			return err

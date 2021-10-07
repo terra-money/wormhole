@@ -22,7 +22,7 @@ var (
 		})
 )
 
-func (p *Processor) broadcastSignature(v *vaa.VAA, signature []byte) {
+func (p *Processor) broadcastSignature(v *vaa.VAA, signature []byte, txhash []byte) {
 	digest, err := v.SigningMsg()
 	if err != nil {
 		panic(err)
@@ -32,6 +32,8 @@ func (p *Processor) broadcastSignature(v *vaa.VAA, signature []byte) {
 		Addr:      crypto.PubkeyToAddress(p.gk.PublicKey).Bytes(),
 		Hash:      digest.Bytes(),
 		Signature: signature,
+		TxHash:    txhash,
+		MessageId: v.MessageID(),
 	}
 
 	w := gossipv1.GossipMessage{Message: &gossipv1.GossipMessage_SignedObservation{SignedObservation: &obsv}}
@@ -56,6 +58,7 @@ func (p *Processor) broadcastSignature(v *vaa.VAA, signature []byte) {
 
 	p.state.vaaSignatures[hash].ourVAA = v
 	p.state.vaaSignatures[hash].ourMsg = msg
+	p.state.vaaSignatures[hash].source = v.EmitterChain.String()
 	p.state.vaaSignatures[hash].gs = p.gs // guaranteed to match ourVAA - there's no concurrent access to p.gs
 
 	// Fast path for our own signature

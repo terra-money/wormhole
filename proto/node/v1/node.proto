@@ -14,29 +14,38 @@ service NodePrivilegedService {
   // VAA timeout window for it to reach consensus.
   //
   rpc InjectGovernanceVAA (InjectGovernanceVAARequest) returns (InjectGovernanceVAAResponse);
+
+  // FindMissingMessages will detect message sequence gaps in the local VAA store for a
+  // specific emitter chain and address. Start and end slots are the lowest and highest
+  // sequence numbers available in the local store, respectively.
+  //
+  // An error is returned if more than 1000 gaps are found.
+  rpc FindMissingMessages (FindMissingMessagesRequest) returns (FindMissingMessagesResponse);
 }
 
 message InjectGovernanceVAARequest {
   // Index of the current guardian set.
   uint32 current_set_index = 1;
 
-  // UNIX timestamp (s) of the VAA to be created. The timestamp is informational and will be part
-  // of the VAA submitted to the chain. It's part of the VAA digest and has to be identical across nodes and
-  // is critical for replay protection - a given event may only ever be observed with the same timestamp,
-  // otherwise, it may be possible to execute it multiple times.
+  // Sequence number. This is critical for replay protection - make sure the sequence number
+  // is unique for every new manually injected governance VAA. Sequences are tracked
+  // by emitter, and manually injected VAAs all use a single hardcoded emitter.
   //
-  // For messages, the timestamp identifies the block that the message belongs to.
+  // We use random sequence numbers for the manual emitter.
+  uint64 sequence = 2;
 
-  // For governance VAAs, guardians inject the VAA manually. Best practice is to pick a timestamp which roughly matches
-  // the timing of the off-chain ceremony used to achieve consensus. For guardian set updates, the actual on-chain
-  // guardian set creation timestamp will be set when the VAA is accepted on each chain.
-  //
-  // This is a uint32 to match the on-chain timestamp representation. This becomes a problem in 2106 (sorry).
-  uint32 timestamp = 2;
+  // Random nonce for disambiguation. Must be identical across all nodes.
+  uint32 nonce = 3;
 
   oneof payload{
-    GuardianSetUpdate guardian_set = 3;
-    ContractUpgrade contract_upgrade = 4;
+    // Core module
+
+    GuardianSetUpdate guardian_set = 10;
+    ContractUpgrade contract_upgrade = 11;
+
+    // Token bridge and NFT module
+
+    BridgeRegisterChain bridge_register_chain = 12;
   }
 }
 
@@ -68,6 +77,17 @@ message GuardianKey {
   bool unsafe_deterministic_key = 2;
 }
 
+message BridgeRegisterChain {
+  // Module identifier of the token or NFT bridge (typically "TokenBridge" or "NFTBridge")
+  string module = 1;
+
+  // ID of the chain to be registered.
+  uint32 chain_id = 2;
+
+  // Hex-encoded emitter address to be registered (without leading 0x).
+  string emitter_address = 3;
+}
+
 // ContractUpgrade represents a Wormhole contract update to be submitted to and signed by the node.
 message ContractUpgrade {
   // ID of the chain where the Wormhole contract should be updated (uint8).
@@ -75,4 +95,20 @@ message ContractUpgrade {
 
   // Address of the new program/contract.
   bytes new_contract = 2;
+}
+
+message FindMissingMessagesRequest {
+  // Emitter chain ID to iterate.
+  uint32 emitter_chain = 1;
+  // Hex-encoded (without leading 0x) emitter address to iterate.
+  string emitter_address = 2;
+}
+
+message FindMissingMessagesResponse {
+  // List of missing sequence numbers.
+  repeated string missing_messages = 1;
+
+  // Range processed
+  uint64 first_sequence = 2;
+  uint64 last_sequence = 3;
 }

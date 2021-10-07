@@ -1,9 +1,9 @@
-import { CHAIN_ID_SOLANA } from "@certusone/wormhole-sdk";
+import { CHAIN_ID_ETH, CHAIN_ID_SOLANA } from "@certusone/wormhole-sdk";
 import { Button, makeStyles, MenuItem, TextField } from "@material-ui/core";
-import { Restore } from "@material-ui/icons";
 import { useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useHistory } from "react-router";
+import { useBetaContext } from "../../contexts/BetaContext";
 import useIsWalletReady from "../../hooks/useIsWalletReady";
 import {
   selectTransferAmount,
@@ -19,7 +19,12 @@ import {
   setAmount,
   setSourceChain,
 } from "../../store/transferSlice";
-import { CHAINS, MIGRATION_ASSET_MAP } from "../../utils/consts";
+import {
+  BETA_CHAINS,
+  CHAINS,
+  ETH_MIGRATION_ASSET_MAP,
+  MIGRATION_ASSET_MAP,
+} from "../../utils/consts";
 import ButtonWithLoader from "../ButtonWithLoader";
 import KeyAndBalance from "../KeyAndBalance";
 import LowBalanceWarning from "../LowBalanceWarning";
@@ -33,23 +38,25 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-function Source({
-  setIsRecoveryOpen,
-}: {
-  setIsRecoveryOpen: (open: boolean) => void;
-}) {
+function Source() {
   const classes = useStyles();
   const dispatch = useDispatch();
+  const isBeta = useBetaContext();
   const history = useHistory();
   const sourceChain = useSelector(selectTransferSourceChain);
   const parsedTokenAccount = useSelector(
     selectTransferSourceParsedTokenAccount
   );
   const hasParsedTokenAccount = !!parsedTokenAccount;
-  const isMigrationAsset =
+  const isSolanaMigration =
     sourceChain === CHAIN_ID_SOLANA &&
     !!parsedTokenAccount &&
     !!MIGRATION_ASSET_MAP.get(parsedTokenAccount.mintKey);
+  const isEthereumMigration =
+    sourceChain === CHAIN_ID_ETH &&
+    !!parsedTokenAccount &&
+    !!ETH_MIGRATION_ASSET_MAP.get(parsedTokenAccount.mintKey);
+  const isMigrationAsset = isSolanaMigration || isEthereumMigration;
   const uiAmountString = useSelector(selectTransferSourceBalanceString);
   const amount = useSelector(selectTransferAmount);
   const error = useSelector(selectTransferSourceError);
@@ -57,10 +64,14 @@ function Source({
   const shouldLockFields = useSelector(selectTransferShouldLockFields);
   const { isReady, statusMessage } = useIsWalletReady(sourceChain);
   const handleMigrationClick = useCallback(() => {
-    history.push(
-      `/migrate/${parsedTokenAccount?.mintKey}/${parsedTokenAccount?.publicKey}`
-    );
-  }, [history, parsedTokenAccount]);
+    if (sourceChain === CHAIN_ID_SOLANA) {
+      history.push(
+        `/migrate/Solana/${parsedTokenAccount?.mintKey}/${parsedTokenAccount?.publicKey}`
+      );
+    } else if (sourceChain === CHAIN_ID_ETH) {
+      history.push(`/migrate/Ethereum/${parsedTokenAccount?.mintKey}`);
+    }
+  }, [history, parsedTokenAccount, sourceChain]);
   const handleSourceChange = useCallback(
     (event) => {
       dispatch(setSourceChain(event.target.value));
@@ -79,27 +90,19 @@ function Source({
   return (
     <>
       <StepDescription>
-        <div style={{ display: "flex", alignItems: "center" }}>
-          Select tokens to send through the Wormhole Token Bridge.
-          <div style={{ flexGrow: 1 }} />
-          <Button
-            onClick={() => setIsRecoveryOpen(true)}
-            size="small"
-            variant="outlined"
-            endIcon={<Restore />}
-          >
-            Perform Recovery
-          </Button>
-        </div>
+        Select tokens to send through the Wormhole Token Bridge.
       </StepDescription>
       <TextField
         select
+        variant="outlined"
         fullWidth
         value={sourceChain}
         onChange={handleSourceChange}
         disabled={shouldLockFields}
       >
-        {CHAINS.map(({ id, name }) => (
+        {CHAINS.filter(({ id }) =>
+          isBeta ? true : !BETA_CHAINS.includes(id)
+        ).map(({ id, name }) => (
           <MenuItem key={id} value={id}>
             {name}
           </MenuItem>
@@ -130,6 +133,7 @@ function Source({
           <LowBalanceWarning chainId={sourceChain} />
           {hasParsedTokenAccount ? (
             <TextField
+              variant="outlined"
               label="Amount"
               type="number"
               fullWidth

@@ -1,17 +1,15 @@
-import {
-  CHAIN_ID_SOLANA,
-  CHAIN_ID_ETH,
-  hexToNativeString,
-} from "@certusone/wormhole-sdk";
+import { CHAIN_ID_SOLANA, hexToNativeString } from "@certusone/wormhole-sdk";
 import { makeStyles, MenuItem, TextField, Typography } from "@material-ui/core";
 import { Alert } from "@material-ui/lab";
 import { useCallback, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useBetaContext } from "../../contexts/BetaContext";
 import useIsWalletReady from "../../hooks/useIsWalletReady";
 import useMetadata from "../../hooks/useMetadata";
 import useSyncTargetAddress from "../../hooks/useSyncTargetAddress";
 import { EthGasEstimateSummary } from "../../hooks/useTransactionFees";
 import {
+  selectTransferAmount,
   selectTransferIsTargetComplete,
   selectTransferShouldLockFields,
   selectTransferSourceChain,
@@ -21,10 +19,10 @@ import {
   selectTransferTargetChain,
   selectTransferTargetError,
   UNREGISTERED_ERROR_MESSAGE,
-  selectTransferAmount,
 } from "../../store/selectors";
 import { incrementStep, setTargetChain } from "../../store/transferSlice";
-import { CHAINS, CHAINS_BY_ID } from "../../utils/consts";
+import { BETA_CHAINS, CHAINS, CHAINS_BY_ID } from "../../utils/consts";
+import { isEVMChain } from "../../utils/ethereum";
 import ButtonWithLoader from "../ButtonWithLoader";
 import KeyAndBalance from "../KeyAndBalance";
 import LowBalanceWarning from "../LowBalanceWarning";
@@ -48,6 +46,7 @@ const useStyles = makeStyles((theme) => ({
 function Target() {
   const classes = useStyles();
   const dispatch = useDispatch();
+  const isBeta = useBetaContext();
   const sourceChain = useSelector(selectTransferSourceChain);
   const chains = useMemo(
     () => CHAINS.filter((c) => c.id !== sourceChain),
@@ -95,17 +94,20 @@ function Target() {
     <>
       <StepDescription>Select a recipient chain and address.</StepDescription>
       <TextField
+        variant="outlined"
         select
         fullWidth
         value={targetChain}
         onChange={handleTargetChange}
         disabled={shouldLockFields}
       >
-        {chains.map(({ id, name }) => (
-          <MenuItem key={id} value={id}>
-            {name}
-          </MenuItem>
-        ))}
+        {chains
+          .filter(({ id }) => (isBeta ? true : !BETA_CHAINS.includes(id)))
+          .map(({ id, name }) => (
+            <MenuItem key={id} value={id}>
+              {name}
+            </MenuItem>
+          ))}
       </TextField>
       <KeyAndBalance chainId={targetChain} balance={uiAmountString} />
       {readableTargetAddress ? (
@@ -152,8 +154,8 @@ function Target() {
           You will have to pay transaction fees on{" "}
           {CHAINS_BY_ID[targetChain].name} to redeem your tokens.
         </Typography>
-        {targetChain === CHAIN_ID_ETH && (
-          <EthGasEstimateSummary methodType="transfer" />
+        {isEVMChain(targetChain) && (
+          <EthGasEstimateSummary methodType="transfer" chainId={targetChain} />
         )}
       </Alert>
       <LowBalanceWarning chainId={targetChain} />

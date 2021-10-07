@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"encoding/hex"
+	"github.com/mr-tron/base58"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -38,6 +39,17 @@ var (
 // handleMessage processes a message received from a chain and instantiates our deterministic copy of the VAA. An
 // event may be received multiple times and must be handled in an idempotent fashion.
 func (p *Processor) handleMessage(ctx context.Context, k *common.MessagePublication) {
+	if p.gs == nil {
+		p.logger.Warn("dropping observation since we haven't initialized our guardian set yet",
+			zap.Stringer("emitter_chain", k.EmitterChain),
+			zap.Stringer("emitter_address", k.EmitterAddress),
+			zap.Uint32("nonce", k.Nonce),
+			zap.Stringer("txhash", k.TxHash),
+			zap.Time("timestamp", k.Timestamp),
+		)
+		return
+	}
+
 	supervisor.Logger(ctx).Info("message publication confirmed",
 		zap.Stringer("emitter_chain", k.EmitterChain),
 		zap.Stringer("emitter_address", k.EmitterAddress),
@@ -81,7 +93,15 @@ func (p *Processor) handleMessage(ctx context.Context, k *common.MessagePublicat
 	p.logger.Info("observed and signed confirmed message publication",
 		zap.Stringer("source_chain", k.EmitterChain),
 		zap.Stringer("txhash", k.TxHash),
+		zap.String("txhash_b58", base58.Encode(k.TxHash.Bytes())),
 		zap.String("digest", hex.EncodeToString(digest.Bytes())),
+		zap.Uint32("nonce", k.Nonce),
+		zap.Uint64("sequence", k.Sequence),
+		zap.Stringer("emitter_chain", k.EmitterChain),
+		zap.Stringer("emitter_address", k.EmitterAddress),
+		zap.String("emitter_address_b58", base58.Encode(k.EmitterAddress.Bytes())),
+		zap.Uint8("consistency_level", k.ConsistencyLevel),
+		zap.String("message_id", v.MessageID()),
 		zap.String("signature", hex.EncodeToString(s)))
 
 	messagesSignedTotal.With(prometheus.Labels{
@@ -89,5 +109,5 @@ func (p *Processor) handleMessage(ctx context.Context, k *common.MessagePublicat
 
 	p.attestationEvents.ReportMessagePublication(&reporter.MessagePublication{VAA: *v, InitiatingTxID: k.TxHash})
 
-	p.broadcastSignature(v, s)
+	p.broadcastSignature(v, s, k.TxHash.Bytes())
 }

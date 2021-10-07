@@ -1,13 +1,13 @@
 # This is a multi-stage docker file, first stage builds contracts
 # And the second one creates node.js environment to deploy them
-FROM cosmwasm/workspace-optimizer:0.10.4@sha256:a976db4ee7add887a6af26724b804bbd9e9d534554506447e72ac57e65357db9 AS builder
+FROM cosmwasm/workspace-optimizer:0.12.1@sha256:1508cf7545f4b656ecafa34e29c1acf200cdab47fced85c2bc076c0c158b1338 AS builder
 ADD Cargo.lock /code/
 ADD Cargo.toml /code/
 ADD contracts /code/contracts
 RUN optimize_workspace.sh
 
 # Contract deployment stage
-FROM python:slim-buster@sha256:ec7a755e6313da2f7db02d8e82f6b0813b176f06c5622174c8ab45feefc8096d
+FROM node:16-buster-slim@sha256:93c9fc3550f5f7d159f282027228e90e3a7f8bf38544758024f005e82607f546
 
 RUN apt update && apt install netcat curl jq -y
 
@@ -18,7 +18,5 @@ ADD ./artifacts/cw20_base.wasm /app/artifacts/
 ADD ./tools /app/tools
 
 RUN chmod +x /app/tools/deploy.sh
-
-RUN pip install -r /app/tools/requirements.txt
 
 ENTRYPOINT /app/tools/deploy.sh

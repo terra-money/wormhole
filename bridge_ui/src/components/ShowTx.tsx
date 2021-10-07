@@ -1,11 +1,13 @@
 import {
   ChainId,
+  CHAIN_ID_BSC,
   CHAIN_ID_ETH,
   CHAIN_ID_SOLANA,
+  CHAIN_ID_TERRA,
 } from "@certusone/wormhole-sdk";
 import { Button, makeStyles, Typography } from "@material-ui/core";
 import { Transaction } from "../store/transferSlice";
-import { CLUSTER } from "../utils/consts";
+import { CLUSTER, getExplorerName } from "../utils/consts";
 
 const useStyles = makeStyles((theme) => ({
   tx: {
@@ -28,12 +30,15 @@ export default function ShowTx({
   const showExplorerLink =
     CLUSTER === "testnet" ||
     CLUSTER === "mainnet" ||
-    (CLUSTER === "devnet" && chainId === CHAIN_ID_SOLANA);
+    (CLUSTER === "devnet" &&
+      (chainId === CHAIN_ID_SOLANA || chainId === CHAIN_ID_TERRA));
   const explorerAddress =
     chainId === CHAIN_ID_ETH
       ? `https://${CLUSTER === "testnet" ? "goerli." : ""}etherscan.io/tx/${
           tx?.id
         }`
+      : chainId === CHAIN_ID_BSC
+      ? `https://bscscan.com/tx/${tx?.id}`
       : chainId === CHAIN_ID_SOLANA
       ? `https://explorer.solana.com/tx/${tx?.id}${
           CLUSTER === "testnet"
@@ -42,8 +47,16 @@ export default function ShowTx({
             ? "?cluster=custom&customUrl=http%3A%2F%2Flocalhost%3A8899"
             : ""
         }`
+      : chainId === CHAIN_ID_TERRA
+      ? `https://finder.terra.money/${
+          CLUSTER === "devnet"
+            ? "localterra"
+            : CLUSTER === "testnet"
+            ? "bombay-12"
+            : "columbus-5"
+        }/tx/${tx?.id}`
       : undefined;
-  const explorerName = chainId === CHAIN_ID_ETH ? "Etherscan" : "Explorer";
+  const explorerName = getExplorerName(chainId);
 
   return (
     <div className={classes.tx}>
@@ -54,6 +67,7 @@ export default function ShowTx({
         <Button
           href={explorerAddress}
           target="_blank"
+          rel="noopener noreferrer"
           size="small"
           variant="outlined"
           className={classes.viewButton}

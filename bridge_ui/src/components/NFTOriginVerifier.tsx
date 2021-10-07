@@ -24,21 +24,24 @@ import { Launch } from "@material-ui/icons";
 import { Alert } from "@material-ui/lab";
 import { Connection } from "@solana/web3.js";
 import { useCallback, useEffect, useState } from "react";
+import { useBetaContext } from "../contexts/BetaContext";
 import { useEthereumProvider } from "../contexts/EthereumProviderContext";
 import useIsWalletReady from "../hooks/useIsWalletReady";
 import { getMetaplexData } from "../hooks/useMetaplexData";
 import { COLORS } from "../muiTheme";
 import { NFTParsedTokenAccount } from "../store/nftSlice";
 import {
-  CHAINS,
+  BETA_CHAINS,
   CHAINS_BY_ID,
-  ETH_NFT_BRIDGE_ADDRESS,
+  CHAINS_WITH_NFT_SUPPORT,
+  getNFTBridgeAddressForChain,
   SOLANA_HOST,
   SOL_NFT_BRIDGE_ADDRESS,
 } from "../utils/consts";
 import {
   ethNFTToNFTParsedTokenAccount,
   getEthereumNFT,
+  isEVMChain,
   isNFT,
   isValidEthereumAddress,
 } from "../utils/ethereum";
@@ -64,11 +67,10 @@ const useStyles = makeStyles((theme) => ({
     WebkitTextFillColor: "transparent",
     MozBackgroundClip: "text",
     MozTextFillColor: "transparent",
-    filter: `drop-shadow( 0px 0px 8px ${COLORS.nearBlack}) drop-shadow( 0px 0px 14px ${COLORS.nearBlack}) drop-shadow( 0px 0px 24px ${COLORS.nearBlack})`,
+    // filter: `drop-shadow( 0px 0px 8px ${COLORS.nearBlack}) drop-shadow( 0px 0px 14px ${COLORS.nearBlack}) drop-shadow( 0px 0px 24px ${COLORS.nearBlack})`,
   },
   mainCard: {
     padding: theme.spacing(1),
-    borderRadius: "5px",
     backgroundColor: COLORS.nearBlackWithMinorTransparency,
   },
   originHeader: {
@@ -88,6 +90,7 @@ const useStyles = makeStyles((theme) => ({
 
 export default function NFTOriginVerifier() {
   const classes = useStyles();
+  const isBeta = useBetaContext();
   const { provider, signerAddress } = useEthereumProvider();
   const [lookupChain, setLookupChain] = useState(CHAIN_ID_ETH);
   const { isReady, statusMessage } = useIsWalletReady(lookupChain);
@@ -119,7 +122,7 @@ export default function NFTOriginVerifier() {
       isReady &&
       provider &&
       signerAddress &&
-      lookupChain === CHAIN_ID_ETH &&
+      isEVMChain(lookupChain) &&
       lookupAsset &&
       lookupTokenId
     ) {
@@ -136,10 +139,11 @@ export default function NFTOriginVerifier() {
                 signerAddress
               );
               const info = await getOriginalAssetEth(
-                ETH_NFT_BRIDGE_ADDRESS,
+                getNFTBridgeAddressForChain(lookupChain),
                 provider,
                 lookupAsset,
-                lookupTokenId
+                lookupTokenId,
+                lookupChain
               );
               if (!cancelled) {
                 setIsLoading(false);
@@ -225,12 +229,12 @@ export default function NFTOriginVerifier() {
       originInfo.chainId
     );
   const displayError =
-    (lookupChain === CHAIN_ID_ETH && statusMessage) || lookupError;
+    (isEVMChain(lookupChain) && statusMessage) || lookupError;
   return (
     <div>
       <Container maxWidth="md">
         <div className={classes.centeredContainer}>
-          <Typography variant="h2" component="h1" className={classes.header}>
+          <Typography variant="h1" className={classes.header}>
             <span className={classes.linearGradient}>NFT Origin Verifier</span>
           </Typography>
         </div>
@@ -243,33 +247,36 @@ export default function NFTOriginVerifier() {
           </Alert>
           <TextField
             select
+            variant="outlined"
             label="Chain"
             value={lookupChain}
             onChange={handleChainChange}
             fullWidth
             margin="normal"
           >
-            {CHAINS.filter(
-              ({ id }) => id === CHAIN_ID_ETH || id === CHAIN_ID_SOLANA
+            {CHAINS_WITH_NFT_SUPPORT.filter(({ id }) =>
+              isBeta ? true : !BETA_CHAINS.includes(id)
             ).map(({ id, name }) => (
               <MenuItem key={id} value={id}>
                 {name}
               </MenuItem>
             ))}
           </TextField>
-          {lookupChain === CHAIN_ID_ETH || lookupChain === CHAIN_ID_BSC ? (
+          {isEVMChain(lookupChain) ? (
             <KeyAndBalance chainId={lookupChain} />
           ) : null}
           <TextField
             fullWidth
+            variant="outlined"
             margin="normal"
             label="Paste an address"
             value={lookupAsset}
             onChange={handleAssetChange}
           />
-          {lookupChain === CHAIN_ID_ETH ? (
+          {isEVMChain(lookupChain) ? (
             <TextField
               fullWidth
+              variant="outlined"
               margin="normal"
               label="Paste a tokenId"
               value={lookupTokenId}
@@ -312,16 +319,29 @@ export default function NFTOriginVerifier() {
                   <Button
                     href={`https://solscan.io/token/${readableAddress}`}
                     target="_blank"
+                    rel="noopener noreferrer"
                     endIcon={<Launch />}
                     className={classes.viewButton}
                     variant="outlined"
                   >
                     View on Solscan
                   </Button>
+                ) : originInfo.chainId === CHAIN_ID_BSC ? (
+                  <Button
+                    href={`https://bscscan.com/token/${readableAddress}?a=${originInfo.tokenId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    endIcon={<Launch />}
+                    className={classes.viewButton}
+                    variant="outlined"
+                  >
+                    View on BscScan
+                  </Button>
                 ) : (
                   <Button
                     href={`https://opensea.io/assets/${readableAddress}/${originInfo.tokenId}`}
                     target="_blank"
+                    rel="noopener noreferrer"
                     endIcon={<Launch />}
                     className={classes.viewButton}
                     variant="outlined"

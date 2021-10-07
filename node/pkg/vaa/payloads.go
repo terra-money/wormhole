@@ -22,9 +22,9 @@ type (
 		NewIndex uint32
 	}
 
-	// BodyRegisterChain is a governance message to register a chain on the token bridge
-	BodyRegisterChain struct {
-		Header         [32]byte
+	// BodyTokenBridgeRegisterChain is a governance message to register a chain on the token bridge
+	BodyTokenBridgeRegisterChain struct {
+		Module         string
 		ChainID        ChainID
 		EmitterAddress Address
 	}
@@ -64,11 +64,18 @@ func (b BodyGuardianSetUpdate) Serialize() []byte {
 	return buf.Bytes()
 }
 
-func (r BodyRegisterChain) Serialize() []byte {
+func (r BodyTokenBridgeRegisterChain) Serialize() []byte {
+	if len(r.Module) > 32 {
+		panic("module longer than 32 byte")
+	}
+
 	buf := &bytes.Buffer{}
 
 	// Write token bridge header
-	buf.Write(r.Header[:])
+	for i := 0; i < (32 - len(r.Module)); i++ {
+		buf.WriteByte(0x00)
+	}
+	buf.Write([]byte(r.Module))
 	// Write action ID
 	MustWrite(buf, binary.BigEndian, uint8(1))
 	// Write target chain (0 = universal)

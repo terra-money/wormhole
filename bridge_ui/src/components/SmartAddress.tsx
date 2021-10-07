@@ -1,7 +1,9 @@
 import {
   ChainId,
+  CHAIN_ID_BSC,
   CHAIN_ID_ETH,
   CHAIN_ID_SOLANA,
+  CHAIN_ID_TERRA,
 } from "@certusone/wormhole-sdk";
 import { Button, makeStyles, Tooltip, Typography } from "@material-ui/core";
 import { FileCopy, OpenInNew } from "@material-ui/icons";
@@ -9,7 +11,7 @@ import { withStyles } from "@material-ui/styles";
 import clsx from "clsx";
 import useCopyToClipboard from "../hooks/useCopyToClipboard";
 import { ParsedTokenAccount } from "../store/transferSlice";
-import { CLUSTER } from "../utils/consts";
+import { CLUSTER, getExplorerName } from "../utils/consts";
 import { shortenAddress } from "../utils/solana";
 
 const useStyles = makeStyles((theme) => ({
@@ -79,13 +81,14 @@ export default function SmartAddress({
     : tokenName
     ? tokenName
     : "";
-  //TODO terra
   const explorerAddress = isNative
     ? null
     : chainId === CHAIN_ID_ETH
     ? `https://${
         CLUSTER === "testnet" ? "goerli." : ""
       }etherscan.io/address/${useableAddress}`
+    : chainId === CHAIN_ID_BSC
+    ? `https://bscscan.com/address/${useableAddress}`
     : chainId === CHAIN_ID_SOLANA
     ? `https://explorer.solana.com/address/${useableAddress}${
         CLUSTER === "testnet"
@@ -94,8 +97,16 @@ export default function SmartAddress({
           ? "?cluster=custom&customUrl=http%3A%2F%2Flocalhost%3A8899"
           : ""
       }`
+    : chainId === CHAIN_ID_TERRA
+    ? `https://finder.terra.money/${
+        CLUSTER === "devnet"
+          ? "localterra"
+          : CLUSTER === "testnet"
+          ? "bombay-12"
+          : "columbus-5"
+      }/address/${useableAddress}`
     : undefined;
-  const explorerName = chainId === CHAIN_ID_ETH ? "Etherscan" : "Explorer";
+  const explorerName = getExplorerName(chainId);
 
   const copyToClipboard = useCopyToClipboard(useableAddress);
 
@@ -107,6 +118,7 @@ export default function SmartAddress({
       className={classes.buttons}
       href={explorerAddress}
       target="_blank"
+      rel="noopener noreferrer"
     >
       {"View on " + explorerName}
     </Button>
