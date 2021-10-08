@@ -22,10 +22,10 @@ export interface ChainInfo {
 export const CHAINS =
   CLUSTER === "mainnet"
     ? [
-        // {
-        //   id: CHAIN_ID_BSC,
-        //   name: "Binance Smart Chain",
-        // },
+        {
+          id: CHAIN_ID_BSC,
+          name: "Binance Smart Chain",
+        },
         {
           id: CHAIN_ID_ETH,
           name: "Ethereum",
@@ -135,7 +135,13 @@ export const SOLANA_HOST = process.env.REACT_APP_SOLANA_API_URL
   : "http://localhost:8899";
 
 export const TERRA_HOST =
-  CLUSTER === "testnet"
+  CLUSTER === "mainnet"
+    ? {
+        URL: "https://lcd.terra.dev",
+        chainID: "columbus-5",
+        name: "mainnet",
+      }
+    : CLUSTER === "testnet"
     ? {
         URL: "https://tequila-lcd.terra.dev",
         chainID: "tequila-0004",
