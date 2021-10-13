@@ -73,11 +73,16 @@ func adminGuardianSetUpdateToVAA(req *nodev1.GuardianSetUpdate, guardianSetIndex
 // adminContractUpgradeToVAA converts a nodev1.ContractUpgrade message to its canonical VAA representation.
 // Returns an error if the data is invalid.
 func adminContractUpgradeToVAA(req *nodev1.ContractUpgrade, guardianSetIndex uint32, nonce uint32, sequence uint64) (*vaa.VAA, error) {
-	if len(req.NewContract) != 32 {
+	b, err := hex.DecodeString(req.NewContract)
+	if err != nil {
+		return nil, errors.New("invalid new contract address encoding (expected hex)")
+	}
+
+	if len(b) != 32 {
 		return nil, errors.New("invalid new_contract address")
 	}
 
-	if req.ChainId > math.MaxUint8 {
+	if req.ChainId > math.MaxUint16 {
 		return nil, errors.New("invalid chain_id")
 	}
 
@@ -96,7 +101,7 @@ func adminContractUpgradeToVAA(req *nodev1.ContractUpgrade, guardianSetIndex uin
 // tokenBridgeRegisterChain converts a nodev1.TokenBridgeRegisterChain message to its canonical VAA representation.
 // Returns an error if the data is invalid.
 func tokenBridgeRegisterChain(req *nodev1.BridgeRegisterChain, guardianSetIndex uint32, nonce uint32, sequence uint64) (*vaa.VAA, error) {
-	if req.ChainId > math.MaxUint8 {
+	if req.ChainId > math.MaxUint16 {
 		return nil, errors.New("invalid chain_id")
 	}
 
