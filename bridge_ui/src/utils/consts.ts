@@ -544,7 +544,7 @@ export const SUPPORTED_TERRA_TOKENS = ["uluna", "uusd"];
 
 export const TERRA_FCD_BASE =
   CLUSTER === "mainnet"
-    ? "https://fcd.terra.dev/"
+    ? "https://fcd.terra.dev"
     : CLUSTER === "testnet"
     ? "https://bombay-fcd.terra.dev"
     : "http://localhost:3060";
