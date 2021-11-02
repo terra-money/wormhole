@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,55 +57,65 @@ func fetchRowsInInterval(tbl *bigtable.Table, ctx context.Context, prefix string
 }
 
 func createCountsOfInterval(tbl *bigtable.Table, ctx context.Context, prefix string, numPrevDays int, keySegments int) (map[string]map[string]int, error) {
-
+	var mu sync.RWMutex
 	results := map[string]map[string]int{}
 	// key track of all the keys seen, to ensure the result objects all have the same keys
 	seenKeySet := map[string]bool{}
 
 	now := time.Now()
 
+	var intervalsWG sync.WaitGroup
+	// there will be a query for each previous day, plus today
+	intervalsWG.Add(numPrevDays + 1)
+
 	for daysAgo := 0; daysAgo <= numPrevDays; daysAgo++ {
+		go func(tbl *bigtable.Table, ctx context.Context, prefix string, daysAgo int) {
+			// start is the SOD, end is EOD
+			// "0 daysAgo start" is 00:00:00 AM of the current day
+			// "0 daysAgo end" is 23:59:59 of the current day (the future)
 
-		// start is the SOD, end is EOD
-		// "0 daysAgo start" is 00:00:00 AM of the current day
-		// "0 daysAgo end" is 23:59:59 of the current day (the future)
+			// calulate the start and end times for the query
+			hoursAgo := (24 * daysAgo)
+			daysAgoDuration := -time.Duration(hoursAgo) * time.Hour
+			n := now.Add(daysAgoDuration)
+			year := n.Year()
+			month := n.Month()
+			day := n.Day()
+			loc := n.Location()
 
-		// calulate the start and end times for the query
-		hoursAgo := (24 * daysAgo)
-		daysAgoDuration := -time.Duration(hoursAgo) * time.Hour
-		n := now.Add(daysAgoDuration)
-		year := n.Year()
-		month := n.Month()
-		day := n.Day()
-		loc := n.Location()
+			start := time.Date(year, month, day, 0, 0, 0, 0, loc)
+			end := time.Date(year, month, day, 23, 59, 59, maxNano, loc)
 
-		start := time.Date(year, month, day, 0, 0, 0, 0, loc)
-		end := time.Date(year, month, day, 23, 59, 59, maxNano, loc)
+			var result []bigtable.Row
+			var fetchErr error
 
-		result, fetchErr := fetchRowsInInterval(tbl, ctx, prefix, start, end)
-		if fetchErr != nil {
-			log.Printf("fetchRowsInInterval returned an error: %v", fetchErr)
-			return nil, fetchErr
-		}
+			defer intervalsWG.Done()
+			result, fetchErr = fetchRowsInInterval(tbl, ctx, prefix, start, end)
 
-		dateStr := start.Format("2006-01-02")
-
-		// initialize the map for this date in the result set
-		if results[dateStr] == nil {
-			results[dateStr] = map[string]int{"*": 0}
-		}
-		// iterate through the rows and increment the count
-		for _, row := range result {
-			countBy := makeGroupKey(keySegments, row.Key())
-			if keySegments != 0 {
-				// increment the total count
-				results[dateStr]["*"] = results[dateStr]["*"] + 1
+			if fetchErr != nil {
+				log.Fatalf("fetchRowsInInterval returned an error: %v", fetchErr)
 			}
-			results[dateStr][countBy] = results[dateStr][countBy] + 1
 
-			// add this key to the set
-			seenKeySet[countBy] = true
-		}
+			dateStr := start.Format("2006-01-02")
+			mu.Lock()
+			// initialize the map for this date in the result set
+			if results[dateStr] == nil {
+				results[dateStr] = map[string]int{"*": 0}
+			}
+			// iterate through the rows and increment the count
+			for _, row := range result {
+				countBy := makeGroupKey(keySegments, row.Key())
+				if keySegments != 0 {
+					// increment the total count
+					results[dateStr]["*"] = results[dateStr]["*"] + 1
+				}
+				results[dateStr][countBy] = results[dateStr][countBy] + 1
+
+				// add this key to the set
+				seenKeySet[countBy] = true
+			}
+			mu.Unlock()
+		}(tbl, ctx, prefix, daysAgo)
 	}
 
 	// ensure each date object has the same keys:
@@ -118,6 +127,7 @@ func createCountsOfInterval(tbl *bigtable.Table, ctx context.Context, prefix str
 			}
 		}
 	}
+	intervalsWG.Wait()
 
 	return results, nil
 }
@@ -234,21 +244,6 @@ func Totals(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
-	// create bibtable client and open table
-	clientOnce.Do(func() {
-		// Declare a separate err variable to avoid shadowing client.
-		var err error
-		project := os.Getenv("GCP_PROJECT")
-		instance := os.Getenv("BIGTABLE_INSTANCE")
-		client, err = bigtable.NewClient(context.Background(), project, instance)
-		if err != nil {
-			http.Error(w, "Error initializing client", http.StatusInternalServerError)
-			log.Printf("bigtable.NewClient: %v", err)
-			return
-		}
-	})
-	tbl := client.Open("v2Events")
 
 	// create the rowkey prefix for querying
 	prefix := ""

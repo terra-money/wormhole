@@ -45,6 +45,10 @@ var (
 		}, []string{"addr", "origin", "status"})
 )
 
+const (
+	settlementTime = time.Second * 30
+)
+
 // handleCleanup handles periodic retransmissions and cleanup of VAAs
 func (p *Processor) handleCleanup(ctx context.Context) {
 	p.logger.Info("aggregation state summary", zap.Int("cached", len(p.state.vaaSignatures)))
@@ -54,7 +58,7 @@ func (p *Processor) handleCleanup(ctx context.Context) {
 		delta := time.Since(s.firstObserved)
 
 		switch {
-		case !s.settled && delta.Seconds() >= 30:
+		case !s.settled && delta > settlementTime:
 			// After 30 seconds, the VAA is considered settled - it's unlikely that more observations will
 			// arrive, barring special circumstances. This is a better time to count misses than submission,
 			// because we submit right when we quorum rather than waiting for all observations to arrive.
@@ -129,7 +133,7 @@ func (p *Processor) handleCleanup(ctx context.Context) {
 			p.logger.Info("expiring submitted VAA", zap.String("digest", hash), zap.Duration("delta", delta))
 			delete(p.state.vaaSignatures, hash)
 			aggregationStateExpiration.Inc()
-		case !s.submitted && ((s.ourMsg != nil && s.retryCount >= 2880 /* 24 hours */) || (s.ourMsg == nil && s.retryCount >= 10 /* 5 minutes */)):
+		case !s.submitted && ((s.ourMsg != nil && s.retryCount >= 14400 /* 120 hours */) || (s.ourMsg == nil && s.retryCount >= 10 /* 5 minutes */)):
 			// Clearly, this horse is dead and continued beatings won't bring it closer to quorum.
 			p.logger.Info("expiring unsubmitted VAA after exhausting retries", zap.String("digest", hash), zap.Duration("delta", delta))
 			delete(p.state.vaaSignatures, hash)
