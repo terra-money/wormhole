@@ -354,7 +354,7 @@ export const WETH_ADDRESS =
   CLUSTER === "mainnet"
     ? "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     : CLUSTER === "testnet"
-    ? ""
+    ? "0x0000000000000000000000000000000000000000"
     : "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E";
 export const WETH_DECIMALS = 18;
 
@@ -362,7 +362,7 @@ export const WBNB_ADDRESS =
   CLUSTER === "mainnet"
     ? "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c"
     : CLUSTER === "testnet"
-    ? ""
+    ? "0x0000000000000000000000000000000000000000"
     : "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E";
 export const WBNB_DECIMALS = 18;
 
@@ -370,7 +370,7 @@ export const WMATIC_ADDRESS =
   CLUSTER === "mainnet"
     ? "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270"
     : CLUSTER === "testnet"
-    ? ""
+    ? "0x0000000000000000000000000000000000000000"
     : "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E";
 export const WMATIC_DECIMALS = 18;
 
@@ -629,3 +629,36 @@ export const VAA_EMITTER_ADDRESSES = [
 ];
 
 export const WORMHOLE_EXPLORER_BASE = "https://wormholenetwork.com/en/explorer";
+
+export const MULTI_CHAIN_TOKENS: {
+  [x: number]: { [address: string]: string };
+} =
+  //EVM chains should format the addresses to all lowercase
+  CLUSTER === "mainnet"
+    ? {
+        [CHAIN_ID_SOLANA]: {
+          EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
+          Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
+        },
+        [CHAIN_ID_ETH]: {
+          "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": "USDC",
+          "0xdac17f958d2ee523a2206206994597c13d831ec7": "USDT",
+        },
+        [CHAIN_ID_TERRA]: {},
+        [CHAIN_ID_BSC]: {
+          "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d": "USDC",
+          "0x55d398326f99059ff775485246999027b3197955": "USDT",
+        },
+        [CHAIN_ID_POLYGON]: {
+          "0x2791bca1f2de4661ed88a30c99a7a9449aa84174": "USDC",
+          "0xc2132d05d31c914a87c6611c10748aeb04b58e8f": "USDT",
+        },
+      }
+    : {
+        [CHAIN_ID_SOLANA]: {
+          "2WDq7wSs9zYrpx2kbHDA4RUTRch2CCTP6ZWaH4GNfnQQ": "SOLT",
+        },
+      };
+
+export const AVAILABLE_MARKETS_URL =
+  "https://docs.wormholenetwork.com/wormhole/overview-liquid-markets";
