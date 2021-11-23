@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0
+
+### Added
+
+separate cjs and esm builds
+
+updateWrappedOnSolana
+
+top-level export getSignedVAAWithRetry
+
 ## 0.0.10
 
 ### Added
