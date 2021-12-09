@@ -14,6 +14,7 @@ import ethIcon from "../icons/eth.svg";
 import polygonIcon from "../icons/polygon.svg";
 import solanaIcon from "../icons/solana.svg";
 import terraIcon from "../icons/terra.svg";
+import oasisIcon from "../icons/oasis-network-rose-logo.svg";
 
 export type Cluster = "devnet" | "testnet" | "mainnet";
 export const CLUSTER: Cluster =
@@ -125,6 +126,14 @@ export const CHAINS_BY_ID: ChainsById = CHAINS.reduce((obj, chain) => {
   obj[chain.id] = chain;
   return obj;
 }, {} as ChainsById);
+
+export const COMING_SOON_CHAINS = [
+  {
+    id: 0,
+    name: "Oasis",
+    logo: oasisIcon,
+  },
+];
 export const getDefaultNativeCurrencySymbol = (chainId: ChainId) =>
   chainId === CHAIN_ID_SOLANA
     ? "SOL"
@@ -277,7 +286,7 @@ export const SOL_NFT_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
     ? "WnFt12ZrnzZrFZkt2xsNsaNWoQribnuQ5B5FrDbwDhD"
     : CLUSTER === "testnet"
-    ? "DjAK1Bo9UuPjLbHc12chy1MRx2AJrowiy7Bw1RhB3SGh"
+    ? "2rHhojZ7hpu1zA91nvZmT8TqWWvMcKmmNBCr2mKTtMq4"
     : "NFTWqJR8YnRVqPDvTJrYuLrQDitTG5AScqbeghi4zSA";
 export const SOL_TOKEN_BRIDGE_ADDRESS =
   CLUSTER === "mainnet"
