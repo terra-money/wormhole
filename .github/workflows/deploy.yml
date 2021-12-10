@@ -36,39 +36,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Go cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
-      - name: Rust cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build
+      - name: BuildBridgeUi
         run: |
-          DOCKER_BUILDKIT=1 docker build --target node-export -f Dockerfile.proto -o type=local,dest=. .
-          DOCKER_BUILDKIT=1 docker build -f solana/Dockerfile.wasm -o type=local,dest=. solana
-          npm ci --prefix ethereum
-          npm ci --prefix sdk/js
-          npm run build --prefix sdk/js
           npm ci --prefix bridge_ui
-          npm ci --prefix lp_ui
           npm run build --prefix bridge_ui
-          npm run build --prefix lp_ui
           ls -al bridge_ui
-          ls -al lp_ui
+          
+      #- name: BuildLpUi
+        #run: |
+          #npm ci --prefix lp_ui
+          #npm run build --prefix lp_ui
+          #ls -al lp_ui
 
       - name: Deploy bridge_ui
         uses: peaceiris/actions-gh-pages@v3
@@ -78,10 +58,10 @@ jobs:
           publish_branch: main
           publish_dir: ./bridge_ui/build
 
-      - name: Deploy lp_ui
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          personal_token: ${{ secrets.PERSONAL_TOKEN }}
-          external_repository: terra-money/wormhole-lp-ui
-          publish_branch: main
-          publish_dir: ./lp_ui/build
+      #- name: Deploy lp_ui
+        #uses: peaceiris/actions-gh-pages@v3
+        #with:
+          #personal_token: ${{ secrets.PERSONAL_TOKEN }}
+          #external_repository: terra-money/wormhole-lp-ui
+          #publish_branch: main
+          #publish_dir: ./lp_ui/build
