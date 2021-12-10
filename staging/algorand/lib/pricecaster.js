@@ -23,6 +23,7 @@ class PricecasterLib {
     this.ownerAddr = ownerAddr
     this.minFee = 1000
     this.groupTx = []
+    this.lsigs = {}
 
     /** Overrides the default VAA processor approval program filename
      * @param {string} filename New file name to use.
@@ -231,11 +232,12 @@ class PricecasterLib {
      * Create the VAA Processor application based on the default approval and clearState programs or based on the specified files.
      * @param  {String} sender account used to sign the createApp transaction
      * @param  {String} gexpTime Guardian key set expiration time
+     * @param  {String} gsindex Index of the guardian key set
      * @param  {String} gkeys Guardian keys listed as a single array
      * @param  {Function} signCallback callback with prototype signCallback(sender, tx) used to sign transactions
      * @return {String} transaction id of the created application
      */
-    this.createVaaProcessorApp = async function (sender, gexpTime, gkeys, signCallback) {
+    this.createVaaProcessorApp = async function (sender, gexpTime, gsindex, gkeys, signCallback) {
       const localInts = 0
       const localBytes = 0
       const globalInts = 4
@@ -253,7 +255,9 @@ class PricecasterLib {
       const compiledProgram = await this.compileVAAProcessorApprovalProgram()
       const approvalProgramCompiled = compiledProgram.compiledBytes
       const clearProgramCompiled = (await this.compileVAAProcessorClearProgram()).compiledBytes
-      const appArgs = [new Uint8Array(Buffer.from(gkeys, 'hex')), algosdk.encodeUint64(parseInt(gexpTime))]
+      const appArgs = [new Uint8Array(Buffer.from(gkeys, 'hex')),
+        algosdk.encodeUint64(parseInt(gexpTime)),
+        algosdk.encodeUint64(parseInt(gsindex))]
 
       // create unsigned transaction
       const txApp = algosdk.makeApplicationCreateTxn(
@@ -545,21 +549,64 @@ class PricecasterLib {
     }
 
     /**
+     * @param {*} sender The sender account.
+     * @param {*} programBytes Compiled program bytes.
+     * @param {*} sigSubsets The signature subsets i..j for logicsig arguments.
+     * @returns Transaction id.
+     */
+    this.commitVerifyTxGroup = async function (programBytes, sigSubsets) {
+      algosdk.assignGroupID(this.groupTx)
+      const signedGroup = []
+      let i = 0
+      for (const tx of this.groupTx) {
+        const lsig = new algosdk.LogicSigAccount(programBytes, [Buffer.from(sigSubsets[i++], 'hex')])
+        const stxn = algosdk.signLogicSigTransaction(tx, lsig)
+        signedGroup.push(stxn.blob)
+      }
+
+      // Save transaction for debugging.
+
+      // fs.unlinkSync('signedgroup.stxn')
+
+      // for (let i = 0; i < signedGroup.length; ++i) {
+      //   fs.appendFileSync('signedgroup.stxn', signedGroup[i])
+      // }
+
+      // const dr = await algosdk.createDryrun({
+      //   client: algodClient,
+      //   txns: drtxns,
+      //   sources: [new algosdk.modelsv2.DryrunSource('lsig', fs.readFileSync(vaaVerifyStatelessProgramFilename).toString('utf8'))]
+      // })
+      // // const drobj = await algodClient.dryrun(dr).do()
+      // fs.writeFileSync('dump.dr', algosdk.encodeObj(dr.get_obj_for_encoding(true)))
+
+      // Submit the transaction
+      const tx = await this.algodClient.sendRawTransaction(signedGroup).do()
+      this.groupTx = []
+      return tx.txId
+    }
+
+    /**
      * VAA Processor: Add a verification step to a transaction group.
      * @param {*} sender The sender account (typically the VAA verification stateless program)
-     * @param {*} payload The VAA payload as Uint8Array.
+     * @param {*} payload The VAA payload.
      * @param {*} gksubset An hex string containing the keys for the guardian subset in this step.
      * @param {*} totalguardians The total number of known guardians.
      */
-    this.addVerifyTx = function (sender, payload, gksubset, totalguardians) {
+    this.addVerifyTx = function (sender, params, payload, gksubset, totalguardians) {
       const appArgs = []
-      appArgs.push(new Uint8Array(Buffer.from(gksubset, 'hex')), algosdk.encodeUint64(parseInt(totalguardians)))
-      this.groupTx.push(algosdk.makeApplicationNoOpTxn(sender,
-        appArgs,
+      appArgs.push(new Uint8Array(Buffer.from('verify')),
+        new Uint8Array(Buffer.from(gksubset.join(''), 'hex')),
+        algosdk.encodeUint64(parseInt(totalguardians)))
+
+      const tx = algosdk.makeApplicationNoOpTxn(sender,
+        params,
         this.appId,
-        undefined, undefined, undefined, undefined,
-        payload))
-      this.groupTx.push()
+        appArgs, undefined, undefined, undefined,
+        new Uint8Array(payload))
+      this.groupTx.push(tx)
+
+      return tx.txID()
     }
   }
 }
