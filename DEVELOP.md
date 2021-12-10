@@ -105,7 +105,7 @@ It installs Go, Minikube, Tilt and any other dependencies required for Wormhole 
     scripts/dev-setup.sh
 
 You then need to close and re-open your session to apply the new environment.
-If you use persistent SSH sessions, make sure to kill the session before reconnecting.
+If you use ControlMaster SSH sessions, make sure to kill the session before reconnecting (`ssh -O exit hostname`).
 
 Start a minikube session with recommended parameters:
 
@@ -178,3 +178,13 @@ Run the bridge UI in devnet by supplying the `--bridge_ui` flag:
 
     tilt up -- --bridge_ui
 
+### Algorand
+
+Node logs:
+
+    kubectl exec -c algod algorand-0 -- tail -f /network/Node/node.log
+    kubectl exec -c algod algorand-0 -- tail -f /network/Primary/node.log
+
+Account list:
+
+    kubectl exec -c goal-kmd algorand-0 -- ./goal account list
