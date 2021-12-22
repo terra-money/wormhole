@@ -62,7 +62,7 @@ var (
 const rpcTimeout = time.Second * 5
 
 // Maximum retries for Solana fetching
-const maxRetries = 5
+const maxRetries = 10
 const retryDelay = 5 * time.Second
 
 type ConsistencyLevel uint8
@@ -506,7 +506,7 @@ func (s *SolanaWatcher) fetchMessageAccount(ctx context.Context, logger *zap.Log
 }
 
 func (s *SolanaWatcher) processMessageAccount(logger *zap.Logger, data []byte, acc solana.PublicKey) {
-	proposal, err := ParseTransferOutProposal(data)
+	proposal, err := ParseMessagePublicationAccount(data)
 	if err != nil {
 		solanaAccountSkips.WithLabelValues("parse_transfer_out").Inc()
 		logger.Error(
@@ -563,7 +563,7 @@ type (
 	}
 )
 
-func ParseTransferOutProposal(data []byte) (*MessagePublicationAccount, error) {
+func ParseMessagePublicationAccount(data []byte) (*MessagePublicationAccount, error) {
 	prop := &MessagePublicationAccount{}
 	// Skip the b"msg" prefix
 	if err := borsh.Deserialize(prop, data[3:]); err != nil {

@@ -3,38 +3,75 @@ import {
   CHAIN_ID_BSC,
   CHAIN_ID_ETH,
   CHAIN_ID_ETHEREUM_ROPSTEN,
+  CHAIN_ID_OASIS,
   CHAIN_ID_POLYGON,
   CHAIN_ID_SOLANA,
+  isEVMChain,
+  MAX_VAA_DECIMALS,
   WSOL_ADDRESS,
 } from "@certusone/wormhole-sdk";
-import { Checkbox, FormControlLabel } from "@material-ui/core";
-import { useCallback, useState } from "react";
-import { useSelector } from "react-redux";
+import { formatUnits } from "@ethersproject/units";
+import {
+  Checkbox,
+  FormControlLabel,
+  Link,
+  makeStyles,
+} from "@material-ui/core";
+import { Alert } from "@material-ui/lab";
+import { useCallback, useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import useGetIsTransferCompleted from "../../hooks/useGetIsTransferCompleted";
 import { useHandleRedeem } from "../../hooks/useHandleRedeem";
 import useIsWalletReady from "../../hooks/useIsWalletReady";
+import useMetadata from "../../hooks/useMetadata";
 import {
+  selectTransferAmount,
+  selectTransferIsRecovery,
   selectTransferTargetAsset,
   selectTransferTargetChain,
 } from "../../store/selectors";
+import { reset } from "../../store/transferSlice";
 import {
+  getHowToAddTokensToWalletUrl,
   ROPSTEN_WETH_ADDRESS,
   WAVAX_ADDRESS,
   WBNB_ADDRESS,
   WETH_ADDRESS,
   WMATIC_ADDRESS,
+  WROSE_ADDRESS,
 } from "../../utils/consts";
 import ButtonWithLoader from "../ButtonWithLoader";
 import KeyAndBalance from "../KeyAndBalance";
+import SmartAddress from "../SmartAddress";
 import { SolanaCreateAssociatedAddressAlternate } from "../SolanaCreateAssociatedAddress";
 import StepDescription from "../StepDescription";
+import AddToMetamask from "./AddToMetamask";
 import WaitingForWalletMessage from "./WaitingForWalletMessage";
+
+const useStyles = makeStyles((theme) => ({
+  alert: {
+    marginTop: theme.spacing(1),
+    marginBottom: theme.spacing(1),
+  },
+}));
 
 function Redeem() {
   const { handleClick, handleNativeClick, disabled, showLoader } =
     useHandleRedeem();
   const targetChain = useSelector(selectTransferTargetChain);
   const targetAsset = useSelector(selectTransferTargetAsset);
+  const isRecovery = useSelector(selectTransferIsRecovery);
+  const transferAmount = useSelector(selectTransferAmount);
+  const { isTransferCompletedLoading, isTransferCompleted } =
+    useGetIsTransferCompleted(true);
+  const classes = useStyles();
+  const dispatch = useDispatch();
   const { isReady, statusMessage } = useIsWalletReady(targetChain);
+  const targetAssetArrayed = useMemo(
+    () => (targetAsset ? [targetAsset] : []),
+    [targetAsset]
+  );
+  const metadata = useMetadata(targetChain, targetAssetArrayed);
   //TODO better check, probably involving a hook & the VAA
   const isEthNative =
     targetChain === CHAIN_ID_ETH &&
@@ -56,6 +93,10 @@ function Redeem() {
     targetChain === CHAIN_ID_AVAX &&
     targetAsset &&
     targetAsset.toLowerCase() === WAVAX_ADDRESS.toLowerCase();
+  const isOasisNative =
+    targetChain === CHAIN_ID_OASIS &&
+    targetAsset &&
+    targetAsset.toLowerCase() === WROSE_ADDRESS.toLowerCase();
   const isSolNative =
     targetChain === CHAIN_ID_SOLANA &&
     targetAsset &&
@@ -66,11 +107,24 @@ function Redeem() {
     isBscNative ||
     isPolygonNative ||
     isAvaxNative ||
+    isOasisNative ||
     isSolNative;
   const [useNativeRedeem, setUseNativeRedeem] = useState(true);
   const toggleNativeRedeem = useCallback(() => {
     setUseNativeRedeem(!useNativeRedeem);
   }, [useNativeRedeem]);
+  const handleResetClick = useCallback(() => {
+    dispatch(reset());
+  }, [dispatch]);
+  const howToAddTokensUrl = getHowToAddTokensToWalletUrl(targetChain);
+
+  const formattedTransferAmount = useMemo(() => {
+    const decimals =
+      (targetAsset && metadata.data?.get(targetAsset)?.decimals) || undefined;
+    return decimals
+      ? formatUnits(transferAmount, Math.min(decimals, MAX_VAA_DECIMALS))
+      : undefined;
+  }, [targetAsset, metadata, transferAmount]);
 
   return (
     <>
@@ -94,16 +148,51 @@ function Redeem() {
 
       <ButtonWithLoader
         //TODO disable when the associated token account is confirmed to not exist
-        disabled={!isReady || disabled}
+        disabled={
+          !isReady ||
+          disabled ||
+          (isRecovery && (isTransferCompletedLoading || isTransferCompleted))
+        }
         onClick={
           isNativeEligible && useNativeRedeem ? handleNativeClick : handleClick
         }
-        showLoader={showLoader}
+        showLoader={showLoader || (isRecovery && isTransferCompletedLoading)}
         error={statusMessage}
       >
         Redeem
       </ButtonWithLoader>
       <WaitingForWalletMessage />
+
+      {isRecovery && isReady && isTransferCompleted ? (
+        <>
+          <Alert severity="info" variant="outlined" className={classes.alert}>
+            These tokens have already been redeemed.{" "}
+            {!isEVMChain(targetChain) && howToAddTokensUrl ? (
+              <Link
+                href={howToAddTokensUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Click here to see how to add them to your wallet.
+              </Link>
+            ) : null}
+          </Alert>
+          {targetAsset ? (
+            <>
+              <span>Token Address:</span>
+              <SmartAddress
+                chainId={targetChain}
+                address={targetAsset || undefined}
+              />
+              {formattedTransferAmount ? <span>{`Amount: ${formattedTransferAmount}`}</span> : null}
+            </>
+          ) : null}
+          {isEVMChain(targetChain) ? <AddToMetamask /> : null}
+          <ButtonWithLoader onClick={handleResetClick}>
+            Transfer More Tokens!
+          </ButtonWithLoader>
+        </>
+      ) : null}
     </>
   );
 }
