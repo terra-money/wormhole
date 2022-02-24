@@ -13,6 +13,9 @@ allow_k8s_contexts("ci")
 # Disable telemetry by default
 analytics_settings(False)
 
+# Moar updates (default is 3)
+update_settings(max_parallel_updates=10)
+
 # Runtime configuration
 config.define_bool("ci", False, "We are running in CI")
 config.define_bool("manual", False, "Set TRIGGER_MODE_MANUAL by default")
@@ -40,6 +43,7 @@ config.define_bool("explorer", False, "Enable explorer component")
 config.define_bool("bridge_ui", False, "Enable bridge UI component")
 config.define_bool("e2e", False, "Enable E2E testing stack")
 config.define_bool("ci_tests", False, "Enable tests runner component")
+config.define_bool("bridge_ui_hot", False, "Enable hot loading bridge_ui")
 
 cfg = config.parse()
 num_guardians = int(cfg.get("num", "1"))
@@ -53,6 +57,8 @@ explorer = cfg.get("explorer", ci)
 bridge_ui = cfg.get("bridge_ui", ci)
 e2e = cfg.get("e2e", ci)
 ci_tests = cfg.get("ci_tests", ci)
+
+bridge_ui_hot = not ci
 
 if cfg.get("manual", False):
     trigger_mode = TRIGGER_MODE_MANUAL
@@ -69,22 +75,26 @@ def k8s_yaml_with_ns(objects):
 
 # protos
 
-proto_deps = ["./proto", "./generate-protos.sh", "buf.yaml", "buf.gen.yaml"]
+proto_deps = ["./proto", "buf.yaml", "buf.gen.yaml"]
 
 local_resource(
     name = "proto-gen",
     deps = proto_deps,
     cmd = "tilt docker build -- --target go-export -f Dockerfile.proto -o type=local,dest=node .",
     env = {"DOCKER_BUILDKIT": "1"},
+    labels = ["protobuf"],
+    allow_parallel=True,
     trigger_mode = trigger_mode,
 )
 
 local_resource(
     name = "proto-gen-web",
-    deps = proto_deps,
+    deps = proto_deps + ["buf.gen.web.yaml"],
     resource_deps = ["proto-gen"],
     cmd = "tilt docker build -- --target node-export -f Dockerfile.proto -o type=local,dest=. .",
     env = {"DOCKER_BUILDKIT": "1"},
+    labels = ["protobuf"],
+    allow_parallel=True,
     trigger_mode = trigger_mode,
 )
 
@@ -93,6 +103,8 @@ local_resource(
     deps = ["staging/algorand/teal"],
     cmd = "tilt docker build -- --target teal-export -f Dockerfile.teal -o type=local,dest=. .",
     env = {"DOCKER_BUILDKIT": "1"},
+    labels = ["algorand"],
+    allow_parallel=True,
     trigger_mode = trigger_mode,
 )
 
@@ -104,6 +116,8 @@ local_resource(
     dir = "solana",
     cmd = "tilt docker build -- -f Dockerfile.wasm -o type=local,dest=.. .",
     env = {"DOCKER_BUILDKIT": "1"},
+    labels = ["solana"],
+    allow_parallel=True,
     trigger_mode = trigger_mode,
 )
 
@@ -155,13 +169,14 @@ k8s_yaml_with_ns(build_node_yaml())
 
 k8s_resource(
     "guardian",
-    resource_deps = ["proto-gen", "solana-devnet"],
+    resource_deps = ["proto-gen", "eth-devnet", "eth-devnet2", "terra-terrad", "solana-devnet"],
     port_forwards = [
         port_forward(6060, name = "Debug/Status Server [:6060]", host = webHost),
         port_forward(7070, name = "Public gRPC [:7070]", host = webHost),
         port_forward(7071, name = "Public REST [:7071]", host = webHost),
         port_forward(2345, name = "Debugger [:2345]", host = webHost),
     ],
+    labels = ["guardian"],
     trigger_mode = trigger_mode,
 )
 
@@ -175,6 +190,7 @@ k8s_resource(
         port_forward(6061, container_port = 6060, name = "Debug/Status Server [:6061]", host = webHost),
         port_forward(7072, name = "Spy gRPC [:7072]", host = webHost),
     ],
+    labels = ["guardian"],
     trigger_mode = trigger_mode,
 )
 
@@ -183,7 +199,7 @@ k8s_resource(
 docker_build(
     ref = "bridge-client",
     context = ".",
-    only = ["./proto", "./solana", "./ethereum", "./clients"],
+    only = ["./proto", "./solana", "./clients"],
     dockerfile = "Dockerfile.client",
     # Ignore target folders from local (non-container) development.
     ignore = ["./solana/*/target"],
@@ -203,12 +219,12 @@ k8s_yaml_with_ns("devnet/solana-devnet.yaml")
 
 k8s_resource(
     "solana-devnet",
-    resource_deps = ["wasm-gen"],
     port_forwards = [
         port_forward(8899, name = "Solana RPC [:8899]", host = webHost),
         port_forward(8900, name = "Solana WS [:8900]", host = webHost),
         port_forward(9000, name = "Solana PubSub [:9000]", host = webHost),
     ],
+    labels = ["solana"],
     trigger_mode = trigger_mode,
 )
 
@@ -241,7 +257,12 @@ if pyth:
     )
     k8s_yaml_with_ns("./devnet/pyth.yaml")
 
-    k8s_resource("pyth", resource_deps = ["solana-devnet"], trigger_mode = trigger_mode)
+    k8s_resource(
+        "pyth", 
+        resource_deps = ["solana-devnet"], 
+        labels = ["solana"],
+        trigger_mode = trigger_mode,
+    )
 
     # pyth2wormhole client autoattester
     docker_build(
@@ -252,12 +273,27 @@ if pyth:
         ignore = ["./solana/*/target"],
     )
 
+    # Automatic pyth2wormhole relay, showcasing p2w-sdk
+    docker_build(
+        ref = "p2w-relay",
+	context = ".",
+	dockerfile = "./third_party/pyth/p2w-relay/Dockerfile",
+    )
+
     k8s_yaml_with_ns("devnet/p2w-attest.yaml")
     k8s_resource(
         "p2w-attest",
         resource_deps = ["solana-devnet", "pyth", "guardian"],
         port_forwards = [],
+        labels = ["solana"],
         trigger_mode = trigger_mode,
+    )
+
+    k8s_yaml_with_ns("devnet/p2w-relay.yaml")
+    k8s_resource(
+        "p2w-relay",
+        resource_deps = ["solana-devnet", "eth-devnet", "pyth", "guardian", "p2w-attest", "proto-gen-web", "wasm-gen"],
+        port_forwards = [],
     )
 
 k8s_yaml_with_ns("devnet/eth-devnet.yaml")
@@ -267,6 +303,7 @@ k8s_resource(
     port_forwards = [
         port_forward(8545, name = "Ganache RPC [:8545]", host = webHost),
     ],
+    labels = ["evm"],
     trigger_mode = trigger_mode,
 )
 
@@ -275,18 +312,27 @@ k8s_resource(
     port_forwards = [
         port_forward(8546, name = "Ganache RPC [:8546]", host = webHost),
     ],
+    labels = ["evm"],
     trigger_mode = trigger_mode,
 )
 
 if bridge_ui:
+    entrypoint = "npm run build && /app/node_modules/.bin/serve -s build -n"
+    live_update = []
+    if bridge_ui_hot:
+        entrypoint = "npm start"
+        live_update = [
+            sync("./bridge_ui/public", "/app/public"),
+            sync("./bridge_ui/src", "/app/src"),
+        ]
+
     docker_build(
         ref = "bridge-ui",
         context = ".",
         only = ["./bridge_ui"],
         dockerfile = "bridge_ui/Dockerfile",
-        live_update = [
-            sync("./bridge_ui/src", "/app/bridge_ui/src"),
-        ],
+        entrypoint = entrypoint,
+        live_update = live_update,
     )
 
     k8s_yaml_with_ns("devnet/bridge-ui.yaml")
@@ -297,6 +343,7 @@ if bridge_ui:
         port_forwards = [
             port_forward(3000, name = "Bridge UI [:3000]", host = webHost),
         ],
+        labels = ["portal"],
         trigger_mode = trigger_mode,
     )
 
@@ -318,7 +365,8 @@ if ci_tests:
 
     k8s_resource(
         "ci-tests",
-        resource_deps = ["eth-devnet", "eth-devnet2", "terra-terrad", "terra-fcd", "solana-devnet", "spy", "guardian"],
+        resource_deps = ["proto-gen-web", "wasm-gen", "eth-devnet", "eth-devnet2", "terra-terrad", "terra-fcd", "solana-devnet", "spy", "guardian"],
+        labels = ["ci"],
         trigger_mode = trigger_mode,
     )
 
@@ -338,6 +386,7 @@ k8s_resource(
         port_forward(4001, name = "Algorand RPC [:4001]", host = webHost),
         port_forward(4002, name = "Algorand KMD [:4002]", host = webHost),
     ],
+    labels = ["algorand"],
     trigger_mode = trigger_mode,
 )
 
@@ -357,6 +406,7 @@ if e2e:
         port_forwards = [
             port_forward(6080, name = "VNC [:6080]", host = webHost, link_path = "/vnc_auto.html"),
         ],
+        labels = ["ci"],
         trigger_mode = trigger_mode,
     )
 
@@ -439,11 +489,20 @@ k8s_resource(
         port_forward(26657, name = "Terra RPC [:26657]", host = webHost),
         port_forward(1317, name = "Terra LCD [:1317]", host = webHost),
     ],
+    labels = ["terra"],
+    trigger_mode = trigger_mode,
+)
+
+k8s_resource(
+    "terra-postgres",
+    labels = ["terra"],
     trigger_mode = trigger_mode,
 )
 
 k8s_resource(
     "terra-fcd",
+    resource_deps = ["terra-terrad", "terra-postgres"],
     port_forwards = [port_forward(3060, name = "Terra FCD [:3060]", host = webHost)],
+    labels = ["terra"],
     trigger_mode = trigger_mode,
 )
