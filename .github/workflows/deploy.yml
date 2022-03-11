@@ -53,7 +53,7 @@ jobs:
       - name: Deploy bridge_ui
         uses: peaceiris/actions-gh-pages@v3
         with:
-          personal_token: ${{ secrets.PERSONAL_TOKEN }}
+          personal_token: ${{ secrets.PERSONAL_TOKEN_202203 }}
           external_repository: terra-money/wormhole-bridge-ui
           publish_branch: main
           publish_dir: ./bridge_ui/build
