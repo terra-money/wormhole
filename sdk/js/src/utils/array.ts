@@ -1,18 +1,26 @@
 import { arrayify, zeroPad } from "@ethersproject/bytes";
 import { PublicKey } from "@solana/web3.js";
 import { hexValue, hexZeroPad, stripZeros } from "ethers/lib/utils";
+import {
+  hexToNativeAssetStringAlgorand,
+  hexToNativeStringAlgorand,
+  nativeStringToHexAlgorand,
+} from "../algorand";
 import { canonicalAddress, humanAddress, isNativeDenom } from "../terra";
 import {
   ChainId,
   CHAIN_ID_ACALA,
+  CHAIN_ID_ALGORAND,
   CHAIN_ID_AURORA,
   CHAIN_ID_AVAX,
   CHAIN_ID_BSC,
+  CHAIN_ID_CELO,
   CHAIN_ID_ETH,
   CHAIN_ID_ETHEREUM_ROPSTEN,
   CHAIN_ID_FANTOM,
   CHAIN_ID_KARURA,
   CHAIN_ID_KLAYTN,
+  CHAIN_ID_NEAR,
   CHAIN_ID_OASIS,
   CHAIN_ID_POLYGON,
   CHAIN_ID_SOLANA,
@@ -31,7 +39,8 @@ export const isEVMChain = (chainId: ChainId) => {
     chainId === CHAIN_ID_FANTOM ||
     chainId === CHAIN_ID_KARURA ||
     chainId === CHAIN_ID_ACALA ||
-    chainId === CHAIN_ID_KLAYTN
+    chainId === CHAIN_ID_KLAYTN ||
+    chainId === CHAIN_ID_CELO
   );
 };
 
@@ -54,9 +63,23 @@ export const hexToNativeString = (h: string | undefined, c: ChainId) => {
       ? isHexNativeTerra(h)
         ? nativeTerraHexToDenom(h)
         : humanAddress(hexToUint8Array(h.substr(24))) // terra expects 20 bytes, not 32
+      : c === CHAIN_ID_ALGORAND
+      ? hexToNativeStringAlgorand(h)
       : h;
   } catch (e) {}
   return undefined;
+};
+export const hexToNativeAssetString = (h: string | undefined, c: ChainId) => {
+  try {
+    return !h
+      ? undefined
+      : // Algorand assets are represented by their asset ids, not an address
+      c === CHAIN_ID_ALGORAND
+      ? hexToNativeAssetStringAlgorand(h)
+      : hexToNativeString(h, c);
+  } catch (e) {
+    return undefined;
+  }
 };
 
 export const nativeToHexString = (
@@ -82,6 +105,8 @@ export const nativeToHexString = (
     } else {
       return uint8ArrayToHex(zeroPad(canonicalAddress(address), 32));
     }
+  } else if (chain === CHAIN_ID_ALGORAND) {
+    return nativeStringToHexAlgorand(address);
   } else {
     return null;
   }
@@ -95,4 +120,12 @@ export function chunks<T>(array: T[], size: number): T[][] {
     0,
     new Array(Math.ceil(array.length / size))
   ).map((_, index) => array.slice(index * size, (index + 1) * size));
+}
+
+export function textToHexString(name: string): string {
+  return Buffer.from(name, "binary").toString("hex");
+}
+
+export function textToUint8Array(name: string): Uint8Array {
+  return new Uint8Array(Buffer.from(name, "binary"));
 }

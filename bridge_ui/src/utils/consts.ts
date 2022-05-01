@@ -1,6 +1,7 @@
 import {
   ChainId,
   CHAIN_ID_ACALA,
+  CHAIN_ID_ALGORAND,
   CHAIN_ID_AURORA,
   CHAIN_ID_AVAX,
   CHAIN_ID_BSC,
@@ -18,6 +19,7 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { getAddress } from "ethers/lib/utils";
 import { CHAIN_CONFIG_MAP } from "../config";
 import acalaIcon from "../icons/acala.svg";
+import algorandIcon from "../icons/algorand.svg";
 import auroraIcon from "../icons/aurora.svg";
 import avaxIcon from "../icons/avax.svg";
 import bscIcon from "../icons/bsc.svg";
@@ -98,6 +100,11 @@ export const CHAINS: ChainInfo[] =
           logo: acalaIcon,
         },
         {
+          id: CHAIN_ID_ALGORAND,
+          name: "Algorand",
+          logo: algorandIcon,
+        },
+        {
           id: CHAIN_ID_AURORA,
           name: "Aurora",
           logo: auroraIcon,
@@ -154,6 +161,11 @@ export const CHAINS: ChainInfo[] =
         },
       ]
     : [
+        {
+          id: CHAIN_ID_ALGORAND,
+          name: "Algorand",
+          logo: algorandIcon,
+        },
         {
           id: CHAIN_ID_BSC,
           name: "Binance Smart Chain",
@@ -212,6 +224,8 @@ export const getDefaultNativeCurrencySymbol = (chainId: ChainId) =>
     ? "AVAX"
     : chainId === CHAIN_ID_OASIS
     ? "ROSE"
+    : chainId === CHAIN_ID_ALGORAND
+    ? "ALGO"
     : chainId === CHAIN_ID_AURORA
     ? "ETH"
     : chainId === CHAIN_ID_FANTOM
@@ -232,6 +246,8 @@ export const getExplorerName = (chainId: ChainId) =>
     ? "Polygonscan"
     : chainId === CHAIN_ID_AVAX
     ? "Snowtrace"
+    : chainId === CHAIN_ID_ALGORAND
+    ? "AlgoExplorer"
     : chainId === CHAIN_ID_FANTOM
     ? "FTMScan"
     : "Explorer";
@@ -319,6 +335,25 @@ export const TERRA_HOST =
         URL: "http://localhost:1317",
         chainID: "columbus-5",
         name: "localterra",
+      };
+export const ALGORAND_HOST =
+  CLUSTER === "mainnet"
+    ? {
+        algodToken: "",
+        algodServer: "https://mainnet-api.algonode.cloud",
+        algodPort: "",
+      }
+    : CLUSTER === "testnet"
+    ? {
+        algodToken: "",
+        algodServer: "https://testnet-api.algonode.cloud",
+        algodPort: "",
+      }
+    : {
+        algodToken:
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        algodServer: "http://localhost",
+        algodPort: "4001",
       };
 export const KARURA_HOST =
   CLUSTER === "mainnet"
@@ -579,6 +614,14 @@ export const TERRA_TOKEN_BRIDGE_ADDRESS =
     : CLUSTER === "testnet"
     ? "terra1pseddrv0yfsn76u4zxrjmtf45kdlmalswdv39a"
     : "terra10pyejy66429refv3g35g2t7am0was7ya7kz2a4";
+export const ALGORAND_BRIDGE_ID = BigInt(
+  CLUSTER === "mainnet" ? "0" : CLUSTER === "testnet" ? "86525623" : "4"
+);
+export const ALGORAND_TOKEN_BRIDGE_ID = BigInt(
+  CLUSTER === "mainnet" ? "0" : CLUSTER === "testnet" ? "86525641" : "6"
+);
+export const ALGORAND_WAIT_FOR_CONFIRMATIONS =
+  CLUSTER === "mainnet" ? 4 : CLUSTER === "testnet" ? 4 : 1;
 
 export const getBridgeAddressForChain = (chainId: ChainId) =>
   chainId === CHAIN_ID_SOLANA
@@ -705,6 +748,8 @@ export const COVALENT_GET_TOKENS_URL = (
 };
 export const TVL_URL =
   "https://europe-west3-wormhole-315720.cloudfunctions.net/mainnet-notionaltvl";
+export const TVL_CUMULATIVE_URL =
+  "https://europe-west3-wormhole-315720.cloudfunctions.net/mainnet-notionaltvlcumulative?totalsOnly=true";
 export const TERRA_SWAPRATE_URL =
   "https://fcd.terra.dev/v1/market/swaprate/uusd";
 
@@ -787,6 +832,8 @@ export const ACA_ADDRESS =
     ? "0x0000000000000000000100000000000000000000"
     : "0xDDb64fE46a91D46ee29420539FC25FD07c5FEa3E";
 export const ACA_DECIMALS = 12;
+
+export const ALGO_DECIMALS = 6;
 
 export const WORMHOLE_V1_ETH_ADDRESS =
   CLUSTER === "mainnet"
@@ -1043,6 +1090,9 @@ export const TOTAL_TRANSACTIONS_WORMHOLE = `https://europe-west3-wormhole-315720
 
 export const RECENT_TRANSACTIONS_WORMHOLE = `https://europe-west3-wormhole-315720.cloudfunctions.net/mainnet-recent?groupBy=address&numRows=2`;
 
+export const NOTIONAL_TRANSFERRED_URL =
+  "https://europe-west3-wormhole-315720.cloudfunctions.net/mainnet-notionaltransferredfrom";
+
 export const VAA_EMITTER_ADDRESSES = [
   `${CHAIN_ID_SOLANA}:ec7372995d5cc8732397fb0ad35c0121e0eaa90d26f828a534cab54391b3a4f5`, //SOLANA TOKEN
   `${CHAIN_ID_SOLANA}:0def15a24423e1edd1a5ab16f557b9060303ddbab8c803d2ee48f4b78a1cfd6b`, //SOLAN NFT
@@ -1193,3 +1243,21 @@ export const ACALA_RELAYER_URL =
 
 export const ACALA_RELAY_URL = `${ACALA_RELAYER_URL}/relay`;
 export const ACALA_SHOULD_RELAY_URL = `${ACALA_RELAYER_URL}/shouldRelay`;
+
+export const getChainShortName = (chainId: ChainId) => {
+  return chainId === CHAIN_ID_BSC ? "BSC" : CHAINS_BY_ID[chainId]?.name;
+};
+
+export const COLOR_BY_CHAIN_ID: { [key in ChainId]?: string } = {
+  [CHAIN_ID_SOLANA]: "#31D7BB",
+  [CHAIN_ID_ETH]: "#8A92B2",
+  [CHAIN_ID_TERRA]: "#5493F7",
+  [CHAIN_ID_BSC]: "#F0B90B",
+  [CHAIN_ID_POLYGON]: "#8247E5",
+  [CHAIN_ID_AVAX]: "#E84142",
+  [CHAIN_ID_OASIS]: "#0092F6",
+  [CHAIN_ID_AURORA]: "#23685A",
+  [CHAIN_ID_FANTOM]: "#1969FF",
+  [CHAIN_ID_KARURA]: "#FF4B3B",
+  [CHAIN_ID_ACALA]: "#E00F51",
+};
